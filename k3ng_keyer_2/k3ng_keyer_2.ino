@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.1437"
+#define CODE_VERSION "2-20260626.1530"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -766,7 +766,7 @@ void print_serial_help() {
   Serial.println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
   Serial.println(F("\\1 \\2 \\3\tPlay memory 1/2/3"));
-  Serial.println(F("\\P\t\tProgram memory (prompts for number)"));
+  Serial.println(F("\\P#<text>\tProgram memory # with <text> (e.g. \\P1CQ CQ DE K3NG)"));
   #endif
 
 }
@@ -775,33 +775,65 @@ void print_serial_help() {
 // ---------------------------------------------------------------------------
 #ifdef FEATURE_MEMORIES
 // cli_program_memory() — serial CLI handler for \P
-// Reads a memory number (1-N) from the serial port, then calls program_memory()
-// so the user can key in the message via the paddles.
+//
+// Syntax: \P<n><text><CR>
+//   <n>    = memory number 1–N (typed immediately after \P, no space)
+//   <text> = message text, optionally including backslash macro sequences
+//   <CR>   = Enter key terminates the message
+//
+// Example: \P1CQ CQ CQ DE K3NG\E
+//
+// If no digit follows \P within 5 s the command is cancelled.
+// If the digit is followed immediately by CR (empty message), the memory is
+// erased (written with just the 0xFF sentinel).
 void cli_program_memory() {
-  Serial.print(F("Memory number (1-"));
-  Serial.print(number_of_memories);
-  Serial.print(F("): "));
 
-  // Wait up to ~5 s for a digit
+  // Read the memory number digit
   unsigned long deadline = millis() + 5000UL;
-  char c = 0;
+  char num_char = 0;
   while (millis() < deadline) {
     if (Serial.available()) {
-      c = (char)Serial.read();
+      num_char = (char)Serial.read();
       break;
     }
   }
 
-  if (c >= '1' && c <= ('0' + number_of_memories)) {
-    byte mem_num = c - '1';          // convert to 0-based
-    Serial.println(c);
-    program_memory(mem_num);
-    Serial.print(F("Memory "));
-    Serial.print((int)(c - '0'));
-    Serial.println(F(" saved."));
-  } else {
+  if (num_char < '1' || num_char > ('0' + number_of_memories)) {
     Serial.println(F("Cancelled."));
+    return;
   }
+
+  byte mem_num = num_char - '1';    // 0-based
+  Serial.write(num_char);           // echo digit
+
+  // Read message characters until CR / LF, writing each to EEPROM
+  int mem_index = 0;
+  int mem_max   = memory_end(mem_num) - memory_start(mem_num);  // max usable bytes
+
+  deadline = millis() + 30000UL;   // 30 s to finish typing the message
+  while (millis() < deadline) {
+    if (!Serial.available()) continue;
+    char c = (char)Serial.read();
+    if (c == '\r' || c == '\n') break;
+    if (mem_index >= mem_max) {
+      // Slot full — drain remaining input until CR
+      while (millis() < deadline) {
+        if (Serial.available() && (Serial.read() == '\r' || Serial.read() == '\n')) break;
+      }
+      Serial.println(F(" [truncated]"));
+      break;
+    }
+    Serial.write(c);  // echo
+    EEPROM.update(memory_start(mem_num) + mem_index, (byte)toupper(c));
+    mem_index++;
+  }
+
+  EEPROM.update(memory_start(mem_num) + mem_index, 255);  // sentinel
+
+  Serial.println();
+  Serial.print(F("Memory "));
+  Serial.print((int)(mem_num + 1));
+  Serial.println(F(" saved."));
 }
 #endif // FEATURE_MEMORIES
 
@@ -1040,15 +1072,16 @@ int convert_cw_number_to_ascii(long cw_code) {
     case 22211: return '8';
     case 22221: return '9';
 
-    case 9:     return ' ';   // wordspace token
-    case 21122: return '/';
-    case 21112: return '=';   // BT
-    case 211112:return '-';
-    case 121212:return '.';
-    case 221122:return ',';
-    case 112211:return '?';
-    case 122121:return '@';
-    case 12121: return '+';   // AR
+    case 9:      return ' ';   // wordspace token
+    case 21122:  return '/';
+    case 21112:  return '=';   // BT
+    case 211112: return '-';
+    case 121212: return '.';
+    case 221122: return ',';
+    case 112211: return '?';
+    case 122121: return '@';
+    case 12121:  return '+';   // AR
+    case 222222: return '\\';  // six dahs — special hack for backslash (macro prefix)
   }
   return -1;  // unknown
 }
@@ -1300,6 +1333,9 @@ void program_memory(byte memory_number) {
   byte loop2 = 1;
   byte consecutive_spaces = 0;
   const byte max_consecutive_spaces = 3;   // caps trailing spaces; end-timeout governs actual exit
+  #ifdef FEATURE_MEMORY_MACROS
+  byte macro_flag = 0;  // when set, suppress wordspace after backslash so next char is the macro letter
+  #endif
 
   // Two timers, both live outside the outer loop so they persist across characters:
   //   last_element_time  — reset on every dit/dah AND on every space written.
@@ -1392,7 +1428,12 @@ void program_memory(byte memory_number) {
           } else if ((now - last_element_time) > (dit_ms * (cw_scheduler.length_wordspace - 1))) {
             // Wordspace: standard 7 dits; 1 already elapsed in spin → wait 6 more.
             // Only insert if under the consecutive-space cap (prevents filling slot with spaces).
+            // Suppress wordspace immediately after a backslash so the macro letter follows directly.
+            #ifdef FEATURE_MEMORY_MACROS
+            if (consecutive_spaces < max_consecutive_spaces && !macro_flag) {
+            #else
             if (consecutive_spaces < max_consecutive_spaces) {
+            #endif
               cwchar = 9;   // space token
               loop1 = 0;
             }
@@ -1423,6 +1464,9 @@ void program_memory(byte memory_number) {
           consecutive_spaces++;
         } else {
           consecutive_spaces = 0;
+          #ifdef FEATURE_MEMORY_MACROS
+          macro_flag = (ascii == '\\') ? 1 : 0;  // set flag after backslash, clear on any other char
+          #endif
         }
       }
     }
