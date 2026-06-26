@@ -82,6 +82,7 @@ enum element_buffer_type {
 // ---------------------------------------------------------------------------
 #define KEYER_NORMAL       0
 #define KEYER_COMMAND_MODE 1
+#define KEYER_BEACON       2
 
 // ---------------------------------------------------------------------------
 // Keyer modes
@@ -152,7 +153,7 @@ struct config_struct {
 
   uint8_t  length_wordspace;    // in dit units (default 7)
   uint8_t  cw_tx_enabled;       // 1 = TX enabled, 0 = sidetone only
-  uint8_t  future_uint8_t_3;
+  uint8_t  beacon_mode_on_boot_up; // 1 = enter beacon mode at boot (FEATURE_BEACON_SETTING)
   uint8_t  future_uint8_t_4;
   unsigned int ptt_lead_time;   // PTT lead time in ms
   unsigned int ptt_tail_time;   // PTT tail time in ms

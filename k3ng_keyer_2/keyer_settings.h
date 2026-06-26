@@ -63,6 +63,13 @@
 #define memory_area_start    (sizeof(config_struct) + 5)
 
 // ---------------------------------------------------------------------------
+// Beacon mode (FEATURE_BEACON / FEATURE_BEACON_SETTING)
+// ---------------------------------------------------------------------------
+// Delay between successive memory-1 playbacks in beacon mode (ms).
+// Only used when OPTION_BEACON_MODE_MEMORY_REPEAT_TIME is enabled.
+#define beacon_memory_repeat_time_ms  3000
+
+// ---------------------------------------------------------------------------
 // Speed potentiometer (FEATURE_POTENTIOMETER)
 // ---------------------------------------------------------------------------
 #define initial_pot_wpm_low_value         13    // WPM when pot is fully CCW

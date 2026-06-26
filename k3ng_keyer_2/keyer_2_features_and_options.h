@@ -35,13 +35,15 @@
 #define FEATURE_MEMORY_MACROS                             // Backslash macro commands within memories (\S \E \C \N \W \Y \Z \D \U \V \T \F \I \0-\9)
 #define FEATURE_POTENTIOMETER                     // Speed control potentiometer (do not enable without hardware connected)
 #define FEATURE_PADDLE_ECHO                       // Echo paddle characters to serial port
+#define FEATURE_BEACON                            // Beacon mode: hold paddle_left at boot to loop memory 1
+#define FEATURE_BEACON_SETTING                    // \_ CLI command to persist beacon-on-boot setting to EEPROM
+#define OPTION_BEACON_MODE_MEMORY_REPEAT_TIME     // Delay between successive memory-1 playbacks in beacon mode
+#define OPTION_BEACON_MODE_PTT_TAIL_TIME          // Wait for PTT tail to drop before replaying in beacon mode
 
 // *** Not implemented yet ***
 
 // --- Features ---
 // #define FEATURE_COMMAND_LINE_INTERFACE_ON_SECONDARY_PORT  // CLI on a secondary serial port
-// #define FEATURE_BEACON                         // Beacon mode if paddle_left is LOW at boot
-// #define FEATURE_BEACON_SETTING                 // Beacon mode controlled by EEPROM setting (\_ CLI command)
 // #define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
 // #define FEATURE_AUTOSPACE                      // Automatic character spacing

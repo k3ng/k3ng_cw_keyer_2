@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.2010"
+#define CODE_VERSION "2-20260626.2100"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -100,6 +100,9 @@ uint16_t memory_area_end = 0;   // set in setup() to EEPROM.length() - 1
 // ---------------------------------------------------------------------------
 
 void initialize_state();
+#if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
+void service_beacon_mode();
+#endif
 #ifdef FEATURE_POTENTIOMETER
 byte pot_value_wpm();
 void check_potentiometer();
@@ -227,6 +230,18 @@ void setup() {
     }
   }
 
+  // Beacon mode: enter if paddle_left held LOW at boot, or if EEPROM setting is active
+  #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
+  if (digitalRead(paddle_left) == LOW) {
+    keyer_machine_mode = KEYER_BEACON;
+  }
+  #endif
+  #if defined(FEATURE_BEACON_SETTING) && defined(FEATURE_MEMORIES)
+  if (configuration.beacon_mode_on_boot_up) {
+    keyer_machine_mode = KEYER_BEACON;
+  }
+  #endif
+
   // Startup sound
   say_hi();
 
@@ -243,6 +258,9 @@ void loop() {
   check_ptt_tail();
   service_serial();
   service_sound(SERVICE, 0, 0);
+  #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
+  service_beacon_mode();
+  #endif
   #ifdef FEATURE_POTENTIOMETER
   check_potentiometer();
   #endif
@@ -273,7 +291,7 @@ void initialize_state() {
   configuration.paddle_mode        = PADDLE_NORMAL;
   configuration.length_wordspace   = default_length_wordspace;
   configuration.cw_tx_enabled      = 1;
-  configuration.future_uint8_t_3   = 0;
+  configuration.beacon_mode_on_boot_up = 0;
   configuration.future_uint8_t_4   = 0;
   configuration.ptt_lead_time      = initial_ptt_lead_time_ms;
   configuration.ptt_tail_time      = initial_ptt_tail_time_ms;
@@ -345,6 +363,35 @@ void check_for_dirty_configuration() {
   }
 
 }
+
+// ---------------------------------------------------------------------------
+// Beacon mode (FEATURE_BEACON / FEATURE_BEACON_SETTING)
+// ---------------------------------------------------------------------------
+
+#if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
+
+void service_beacon_mode() {
+
+  if (keyer_machine_mode != KEYER_BEACON) return;
+
+  if (cw_scheduler.char_send_buffer_bytes    != 0) return;
+  if (cw_scheduler.element_send_buffer_bytes != 0) return;
+
+  #ifdef OPTION_BEACON_MODE_PTT_TAIL_TIME
+  if (tx_ptt.ptt_line_asserted) return;
+  #endif
+
+  #ifdef OPTION_BEACON_MODE_MEMORY_REPEAT_TIME
+  static unsigned long last_beacon_play_time = 0;
+  if ((millis() - last_beacon_play_time) < beacon_memory_repeat_time_ms) return;
+  last_beacon_play_time = millis();
+  #endif
+
+  play_memory(0);   // always plays memory 1
+
+}
+
+#endif // FEATURE_BEACON && FEATURE_MEMORIES
 
 // ---------------------------------------------------------------------------
 // Paddle echo (FEATURE_PADDLE_ECHO)
@@ -963,6 +1010,16 @@ void serial_status() {
   Serial.println(paddle_echo_active ? F("On") : F("Off"));
   #endif
 
+  #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
+  Serial.print(F("Beacon: "));
+  Serial.print(keyer_machine_mode == KEYER_BEACON ? F("Active") : F("Inactive"));
+  #ifdef FEATURE_BEACON_SETTING
+  Serial.print(F("  Boot: "));
+  Serial.print(configuration.beacon_mode_on_boot_up ? F("Enabled") : F("Disabled"));
+  #endif
+  Serial.println();
+  #endif
+
   #ifdef FEATURE_POTENTIOMETER
   Serial.print(F("Pot: "));
   Serial.print(pot_activated ? F("Active") : F("Inactive"));
@@ -1017,6 +1074,9 @@ void print_serial_help() {
   #endif
   #ifdef FEATURE_PADDLE_ECHO
   Serial.println(F("\\*\t\tToggle paddle echo on/off"));
+  #endif
+  #if defined(FEATURE_BEACON_SETTING) && defined(FEATURE_MEMORIES)
+  Serial.println(F("\\_\t\tToggle beacon-on-boot enable/disable"));
   #endif
   Serial.println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
@@ -1180,6 +1240,15 @@ void process_cli_command(char cmd) {
       paddle_echo_active = !paddle_echo_active;
       Serial.print(F("Paddle echo "));
       Serial.println(paddle_echo_active ? F("On") : F("Off"));
+      break;
+    #endif
+
+    #if defined(FEATURE_BEACON_SETTING) && defined(FEATURE_MEMORIES)
+    case '_':
+      configuration.beacon_mode_on_boot_up = !configuration.beacon_mode_on_boot_up;
+      config_dirty = 1;
+      Serial.print(F("Beacon on boot: "));
+      Serial.println(configuration.beacon_mode_on_boot_up ? F("Enabled") : F("Disabled"));
       break;
     #endif
 
