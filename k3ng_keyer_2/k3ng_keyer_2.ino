@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.1950"
+#define CODE_VERSION "2-20260626.2000"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -957,6 +957,11 @@ void serial_status() {
   Serial.println(F(" ms"));
   Serial.print(F("Wordspace: "));
   Serial.println(cw_scheduler.length_wordspace);
+
+  #ifdef FEATURE_PADDLE_ECHO
+  Serial.print(F("Paddle echo: "));
+  Serial.println(paddle_echo_active ? F("On") : F("Off"));
+  #endif
 
   #ifdef FEATURE_POTENTIOMETER
   Serial.print(F("Pot: "));
