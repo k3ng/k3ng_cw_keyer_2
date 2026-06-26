@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.1530"
+#define CODE_VERSION "2-20260626.1558"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -162,6 +162,24 @@ void setup() {
   #ifdef FEATURE_MEMORIES
   memory_area_end = EEPROM.length() - 1;
   #endif
+
+  // Factory reset: squeeze both paddles at power-up to clear all memories
+  if (digitalRead(paddle_left) == LOW && digitalRead(paddle_right) == LOW) {
+    while (digitalRead(paddle_left) == LOW || digitalRead(paddle_right) == LOW) {}
+    #ifdef FEATURE_MEMORIES
+    for (byte m = 0; m < number_of_memories; m++) {
+      EEPROM.update(memory_start(m), 255);
+    }
+    #endif
+    // Three beep-boops as confirmation
+    for (byte i = 0; i < 3; i++) {
+      tone(sidetone_line, hz_high_beep); delay(150);
+      noTone(sidetone_line);             delay(50);
+      tone(sidetone_line, hz_low_beep);  delay(150);
+      noTone(sidetone_line);             delay(50);
+    }
+    Serial.println(F("Factory reset: memories cleared."));
+  }
 
   // Startup sound
   say_hi();
