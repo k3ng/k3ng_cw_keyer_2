@@ -42,13 +42,12 @@
 // #define FEATURE_COMMAND_LINE_INTERFACE_ON_SECONDARY_PORT  // CLI on a secondary serial port
 // #define FEATURE_BEACON                         // Beacon mode if paddle_left is LOW at boot
 // #define FEATURE_BEACON_SETTING                 // Beacon mode controlled by EEPROM setting (\_ CLI command)
-// #define FEATURE_POTENTIOMETER                  // Speed control potentiometer (do not enable without hardware connected)
+#define FEATURE_POTENTIOMETER                     // Speed control potentiometer (do not enable without hardware connected)
 // #define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
 // #define FEATURE_AUTOSPACE                      // Automatic character spacing
 // #define FEATURE_FARNSWORTH                     // Farnsworth sending speed
 // #define FEATURE_ROTARY_ENCODER                 // Rotary encoder speed control
-// #define FEATURE_POTENTIOMETER                  // Speed control via analog potentiometer
 // #define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears the buffer if no paddle activity
 // #define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 // #define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO       // Dynamically adjust dah-to-dit ratio

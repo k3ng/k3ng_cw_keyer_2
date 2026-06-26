@@ -63,6 +63,17 @@
 #define memory_area_start    (sizeof(config_struct) + 5)
 
 // ---------------------------------------------------------------------------
+// Speed potentiometer (FEATURE_POTENTIOMETER)
+// ---------------------------------------------------------------------------
+#define initial_pot_wpm_low_value         13    // WPM when pot is fully CCW
+#define initial_pot_wpm_high_value        35    // WPM when pot is fully CW
+#define potentiometer_change_threshold     1    // minimum WPM change before updating speed
+#define potentiometer_check_interval_ms  150    // how often to read the pot (ms)
+#define potentiometer_reading_threshold    1    // min ADC change before recalculating WPM
+#define potentiometer_always_on            0    // 1 = always active; 0 = activated by \V
+#define default_pot_full_scale_reading  1023    // max ADC reading (10-bit = 1023)
+
+// ---------------------------------------------------------------------------
 // Analog button array (FEATURE_BUTTONS)
 // R1 = pullup to VCC, R2 = series resistor per button rung.
 // With R1=10, R2=1 and a 10-bit ADC (0-1023):

@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.1730"
+#define CODE_VERSION "2-20260626.1810"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -45,6 +45,13 @@ int serial_number = 1;    // incremented by \E and \C macros; decremented by \N
 
 byte config_dirty = 0;
 unsigned long last_config_write = 0;
+
+#ifdef FEATURE_POTENTIOMETER
+byte pot_wpm_low_value  = initial_pot_wpm_low_value;
+byte pot_wpm_high_value = initial_pot_wpm_high_value;
+byte last_pot_wpm_read  = 0;
+byte pot_activated      = potentiometer_always_on;
+#endif
 
 #ifdef FEATURE_COMMAND_MODE
 
@@ -87,6 +94,10 @@ uint16_t memory_area_end = 0;   // set in setup() to EEPROM.length() - 1
 // ---------------------------------------------------------------------------
 
 void initialize_state();
+#ifdef FEATURE_POTENTIOMETER
+byte pot_value_wpm();
+void check_potentiometer();
+#endif
 void write_settings_to_eeprom();
 bool read_settings_from_eeprom();
 void check_for_dirty_configuration();
@@ -167,6 +178,13 @@ void setup() {
   memory_area_end = EEPROM.length() - 1;
   #endif
 
+  // Potentiometer init
+  #ifdef FEATURE_POTENTIOMETER
+  pinMode(potentiometer, INPUT);
+  pot_activated      = 1;
+  last_pot_wpm_read  = pot_value_wpm();
+  #endif
+
   // Factory reset: squeeze both paddles at power-up to clear settings and memories
   if (digitalRead(paddle_left) == LOW && digitalRead(paddle_right) == LOW) {
     while (digitalRead(paddle_left) == LOW || digitalRead(paddle_right) == LOW) {}
@@ -214,6 +232,9 @@ void loop() {
   check_ptt_tail();
   service_serial();
   service_sound(SERVICE, 0, 0);
+  #ifdef FEATURE_POTENTIOMETER
+  check_potentiometer();
+  #endif
   check_for_dirty_configuration();
   #ifdef FEATURE_COMMAND_MODE
   service_command_mode();
@@ -310,6 +331,54 @@ void check_for_dirty_configuration() {
   }
 
 }
+
+// ---------------------------------------------------------------------------
+// Speed potentiometer (FEATURE_POTENTIOMETER)
+// ---------------------------------------------------------------------------
+
+#ifdef FEATURE_POTENTIOMETER
+
+// Read the ADC and map to WPM.  Returns last value if change is below threshold.
+byte pot_value_wpm() {
+
+  static int  last_pot_read  = 0;
+  static byte return_value   = initial_pot_wpm_low_value;
+
+  int pot_read = analogRead(potentiometer);
+  if (abs(pot_read - last_pot_read) > potentiometer_reading_threshold) {
+    return_value = (byte)map(pot_read, 0, default_pot_full_scale_reading,
+                             pot_wpm_low_value, pot_wpm_high_value);
+    return_value = constrain(return_value, pot_wpm_low_value, pot_wpm_high_value);
+    last_pot_read = pot_read;
+  }
+  return return_value;
+
+}
+
+void check_potentiometer() {
+
+  static unsigned long last_pot_check_time = 0;
+
+  if (!pot_activated) return;
+  if ((millis() - last_pot_check_time) < potentiometer_check_interval_ms) return;
+  last_pot_check_time = millis();
+
+  if (potentiometer_enable_pin && digitalRead(potentiometer_enable_pin) == HIGH) return;
+
+  byte pot_wpm = pot_value_wpm();
+  if (abs((int)pot_wpm - (int)last_pot_wpm_read) >= potentiometer_change_threshold) {
+    configuration.wpm = pot_wpm;
+    last_pot_wpm_read = pot_wpm;
+    config_dirty = 1;
+    #ifdef FEATURE_COMMAND_LINE_INTERFACE
+    Serial.print(F("WPM: "));
+    Serial.println(configuration.wpm);
+    #endif
+  }
+
+}
+
+#endif // FEATURE_POTENTIOMETER
 
 // ---------------------------------------------------------------------------
 // Hardware functions — called by keyer_2_cw.cpp via prototypes in keyer_2.h
@@ -810,6 +879,15 @@ void serial_status() {
   Serial.print(F("Wordspace: "));
   Serial.println(cw_scheduler.length_wordspace);
 
+  #ifdef FEATURE_POTENTIOMETER
+  Serial.print(F("Pot: "));
+  Serial.print(pot_activated ? F("Active") : F("Inactive"));
+  Serial.print(F("  WPM range: "));
+  Serial.print(pot_wpm_low_value);
+  Serial.print(F("-"));
+  Serial.println(pot_wpm_high_value);
+  #endif
+
   #ifdef FEATURE_MEMORIES
   Serial.println(F("Memories:"));
   for (byte m = 0; m < number_of_memories; m++) {
@@ -850,6 +928,9 @@ void print_serial_help() {
   Serial.println(F("\\Y##\t\tSet wordspace (dit units; default 7)"));
   Serial.println(F("\\\\\t\tClear send buffer"));
   Serial.println(F("\\~\t\tReset"));
+  #ifdef FEATURE_POTENTIOMETER
+  Serial.println(F("\\V\t\tToggle potentiometer active/inactive"));
+  #endif
   Serial.println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
   Serial.println(F("\\1 \\2 \\3\tPlay memory 1/2/3"));
@@ -1032,7 +1113,13 @@ void process_cli_command(char cmd) {
     case 'Q': // QRSS mode
     case 'R': // Regular (non-QRSS) mode
     case 'U': // PTT toggle
-    case 'V': // Potentiometer
+    #ifdef FEATURE_POTENTIOMETER
+    case 'V':
+      pot_activated = !pot_activated;
+      Serial.print(F("Pot "));
+      Serial.println(pot_activated ? F("Active") : F("Inactive"));
+      break;
+    #endif // FEATURE_POTENTIOMETER
     case 'X': // Switch TX
     case 'Z': // Autospace
       Serial.println(F("Not implemented yet"));
