@@ -53,12 +53,14 @@
 // if you need longer pauses between words while programming.
 #define memory_program_end_timeout_ms  5000
 
-// EEPROM offset where memory storage begins.  The config struct occupies
-// bytes 0 … sizeof(config_struct)-1; 5 extra bytes are reserved for a
-// magic number, schema version, and future flags.
-// sizeof(config_struct) = 14 bytes on AVR (2+2+1+1+4×u8+2×uint),
-// so the default memory area starts at byte 19.
-#define memory_area_start  (sizeof(config_struct) + 5)
+// EEPROM layout:
+//   Byte 0               : magic number (eeprom_magic_number)
+//   Bytes 1..sizeof(config_struct) : config_struct
+//   4 bytes headroom
+//   memory_area_start onward : memories
+// sizeof(config_struct) = 14 bytes on AVR → memory_area_start = 1+14+4 = 19
+#define eeprom_magic_number  42
+#define memory_area_start    (sizeof(config_struct) + 5)
 
 // ---------------------------------------------------------------------------
 // Analog button array (FEATURE_BUTTONS)

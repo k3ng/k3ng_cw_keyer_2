@@ -150,13 +150,12 @@ struct config_struct {
   uint8_t keyer_mode;     // IAMBIC_A, IAMBIC_B, STRAIGHT, BUG
   uint8_t paddle_mode;    // PADDLE_NORMAL, PADDLE_REVERSE
 
-  // Reserve space for future settings without breaking EEPROM layout
-  uint8_t  future_uint8_t_1;
-  uint8_t  future_uint8_t_2;
+  uint8_t  length_wordspace;    // in dit units (default 7)
+  uint8_t  cw_tx_enabled;       // 1 = TX enabled, 0 = sidetone only
   uint8_t  future_uint8_t_3;
   uint8_t  future_uint8_t_4;
-  unsigned int future_unsigned_int_1;
-  unsigned int future_unsigned_int_2;
+  unsigned int ptt_lead_time;   // PTT lead time in ms
+  unsigned int ptt_tail_time;   // PTT tail time in ms
 };
 
 // ---------------------------------------------------------------------------

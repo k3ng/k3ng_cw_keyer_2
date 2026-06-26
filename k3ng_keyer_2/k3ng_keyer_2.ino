@@ -20,16 +20,14 @@
 
 */
 
-#define CODE_VERSION "2-20260626.1558"
+#define CODE_VERSION "2-20260626.1730"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
 #include "keyer_2_pin_settings.h"
 #include "keyer_2_cw.h"
 
-#ifdef FEATURE_MEMORIES
 #include <EEPROM.h>
-#endif
 
 // ---------------------------------------------------------------------------
 // Global instances
@@ -44,6 +42,9 @@ tx_ptt_struct tx_ptt;
 #ifdef FEATURE_MEMORY_MACROS
 int serial_number = 1;    // incremented by \E and \C macros; decremented by \N
 #endif
+
+byte config_dirty = 0;
+unsigned long last_config_write = 0;
 
 #ifdef FEATURE_COMMAND_MODE
 
@@ -86,6 +87,9 @@ uint16_t memory_area_end = 0;   // set in setup() to EEPROM.length() - 1
 // ---------------------------------------------------------------------------
 
 void initialize_state();
+void write_settings_to_eeprom();
+bool read_settings_from_eeprom();
+void check_for_dirty_configuration();
 void check_paddles();
 void cw_key(struct tx_ptt_struct *tx_ptt_ptr, int state, config_struct *configuration_ptr);
 void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key);
@@ -155,7 +159,7 @@ void setup() {
   Serial.println(F(CODE_VERSION));
   Serial.println(F("Type to send CW. \\? for help."));
 
-  // Initialize runtime state and structs
+  // Initialize runtime state and structs with defaults
   initialize_state();
 
   // EEPROM memory area bounds (must come after initialize_state so config_struct size is known)
@@ -163,9 +167,10 @@ void setup() {
   memory_area_end = EEPROM.length() - 1;
   #endif
 
-  // Factory reset: squeeze both paddles at power-up to clear all memories
+  // Factory reset: squeeze both paddles at power-up to clear settings and memories
   if (digitalRead(paddle_left) == LOW && digitalRead(paddle_right) == LOW) {
     while (digitalRead(paddle_left) == LOW || digitalRead(paddle_right) == LOW) {}
+    write_settings_to_eeprom();   // write defaults to EEPROM
     #ifdef FEATURE_MEMORIES
     for (byte m = 0; m < number_of_memories; m++) {
       EEPROM.update(memory_start(m), 255);
@@ -178,7 +183,19 @@ void setup() {
       tone(sidetone_line, hz_low_beep);  delay(150);
       noTone(sidetone_line);             delay(50);
     }
-    Serial.println(F("Factory reset: memories cleared."));
+    Serial.println(F("Factory reset complete."));
+  } else {
+    // Normal boot: load settings from EEPROM if they exist
+    if (read_settings_from_eeprom()) {
+      // Apply persisted config to runtime structs
+      cw_scheduler.length_wordspace = configuration.length_wordspace;
+      tx_ptt.cw_tx_enabled          = configuration.cw_tx_enabled;
+      tx_ptt.ptt_lead_time          = configuration.ptt_lead_time;
+      tx_ptt.ptt_tail_time          = configuration.ptt_tail_time;
+    } else {
+      // First boot or magic number mismatch — write defaults
+      write_settings_to_eeprom();
+    }
   }
 
   // Startup sound
@@ -197,6 +214,7 @@ void loop() {
   check_ptt_tail();
   service_serial();
   service_sound(SERVICE, 0, 0);
+  check_for_dirty_configuration();
   #ifdef FEATURE_COMMAND_MODE
   service_command_mode();
   #endif
@@ -218,6 +236,12 @@ void initialize_state() {
   configuration.sidetone_frequency = initial_sidetone_freq_hz;
   configuration.keyer_mode         = IAMBIC_B;
   configuration.paddle_mode        = PADDLE_NORMAL;
+  configuration.length_wordspace   = default_length_wordspace;
+  configuration.cw_tx_enabled      = 1;
+  configuration.future_uint8_t_3   = 0;
+  configuration.future_uint8_t_4   = 0;
+  configuration.ptt_lead_time      = initial_ptt_lead_time_ms;
+  configuration.ptt_tail_time      = initial_ptt_tail_time_ms;
 
   // CW scheduler defaults
   cw_scheduler.cw_scheduler_state          = IDLE;
@@ -243,6 +267,47 @@ void initialize_state() {
   tx_ptt.pin_tx            = tx_key_line_1;
   tx_ptt.pin_ptt           = ptt_tx_1;
   tx_ptt.pin_sidetone      = sidetone_line;
+
+}
+
+// ---------------------------------------------------------------------------
+// EEPROM settings persistence
+// ---------------------------------------------------------------------------
+
+void write_settings_to_eeprom() {
+
+  EEPROM.update(0, eeprom_magic_number);
+  const byte *p = (const byte *)(const void *)&configuration;
+  for (unsigned int i = 0; i < sizeof(configuration); i++) {
+    EEPROM.update(1 + i, p[i]);
+  }
+  config_dirty = 0;
+  last_config_write = millis();
+
+}
+
+bool read_settings_from_eeprom() {
+
+  if (EEPROM.read(0) != eeprom_magic_number) return false;
+  byte *p = (byte *)(void *)&configuration;
+  for (unsigned int i = 0; i < sizeof(configuration); i++) {
+    p[i] = EEPROM.read(1 + i);
+  }
+  return true;
+
+}
+
+void check_for_dirty_configuration() {
+
+  if (config_dirty &&
+      ((millis() - last_config_write) > eeprom_write_time_ms) &&
+      cw_scheduler.char_send_buffer_bytes    == 0 &&
+      cw_scheduler.element_send_buffer_bytes == 0 &&
+      tx_ptt.ptt_line_asserted               == 0 &&
+      digitalRead(paddle_left)               == HIGH &&
+      digitalRead(paddle_right)              == HIGH) {
+    write_settings_to_eeprom();
+  }
 
 }
 
@@ -658,6 +723,7 @@ void serial_wpm_set() {
   int new_wpm = serial_get_number_input(3, 0, 1000);
   if (new_wpm > 0) {
     configuration.wpm = new_wpm;
+    config_dirty = 1;
     Serial.print(F("WPM: "));
     Serial.println(configuration.wpm);
   }
@@ -671,6 +737,7 @@ void serial_set_sidetone_freq() {
   int new_hz = serial_get_number_input(4, 99, 20001);
   if (new_hz > 0) {
     configuration.sidetone_frequency = new_hz;
+    config_dirty = 1;
     Serial.print(F("Sidetone: "));
     Serial.print(configuration.sidetone_frequency);
     Serial.println(F(" Hz"));
@@ -684,7 +751,9 @@ void serial_change_wordspace() {
 
   int new_ws = serial_get_number_input(2, 0, 100);
   if (new_ws > 0) {
-    cw_scheduler.length_wordspace = new_ws;
+    cw_scheduler.length_wordspace    = new_ws;
+    configuration.length_wordspace   = new_ws;
+    config_dirty = 1;
     Serial.print(F("Wordspace: "));
     Serial.println(new_ws);
   }
@@ -863,16 +932,19 @@ void process_cli_command(char cmd) {
 
     case 'A':
       configuration.keyer_mode = IAMBIC_A;
+      config_dirty = 1;
       Serial.println(F("Iambic A"));
       break;
 
     case 'B':
       configuration.keyer_mode = IAMBIC_B;
+      config_dirty = 1;
       Serial.println(F("Iambic B"));
       break;
 
     case 'G':
       configuration.keyer_mode = BUG;
+      config_dirty = 1;
       Serial.println(F("Bug"));
       break;
 
@@ -881,13 +953,16 @@ void process_cli_command(char cmd) {
       break;
 
     case 'I':
-      tx_ptt.cw_tx_enabled = !tx_ptt.cw_tx_enabled;
+      tx_ptt.cw_tx_enabled          = !tx_ptt.cw_tx_enabled;
+      configuration.cw_tx_enabled   = tx_ptt.cw_tx_enabled;
+      config_dirty = 1;
       Serial.print(F("TX "));
       Serial.println(tx_ptt.cw_tx_enabled ? F("Enabled") : F("Disabled (sidetone only)"));
       break;
 
     case 'N':
       configuration.paddle_mode = (configuration.paddle_mode == PADDLE_NORMAL) ? PADDLE_REVERSE : PADDLE_NORMAL;
+      config_dirty = 1;
       Serial.print(F("Paddles "));
       Serial.println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
       break;
@@ -1819,6 +1894,7 @@ void command_mode_dispatch() {
     case 12:    // A (.-)
       command_mode_saved_keyer = IAMBIC_A;
       configuration.keyer_mode = IAMBIC_A;
+      config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
       Serial.println(F("Iambic A"));
       #endif
@@ -1827,6 +1903,7 @@ void command_mode_dispatch() {
     case 2111:  // B (-..)
       command_mode_saved_keyer = IAMBIC_B;
       configuration.keyer_mode = IAMBIC_B;
+      config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
       Serial.println(F("Iambic B"));
       #endif
@@ -1840,7 +1917,9 @@ void command_mode_dispatch() {
       break;
 
     case 11:    // I (..)
-      command_mode_saved_tx = !command_mode_saved_tx;
+      command_mode_saved_tx           = !command_mode_saved_tx;
+      configuration.cw_tx_enabled     = command_mode_saved_tx;
+      config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
       Serial.print(F("TX "));
       Serial.println(command_mode_saved_tx ? F("Enabled") : F("Disabled"));
@@ -1850,6 +1929,7 @@ void command_mode_dispatch() {
     case 21:    // N (-.)
       configuration.paddle_mode = (configuration.paddle_mode == PADDLE_NORMAL) ?
                                     PADDLE_REVERSE : PADDLE_NORMAL;
+      config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
       Serial.print(F("Paddles "));
       Serial.println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
@@ -2072,6 +2152,7 @@ void service_command_mode() {
         if (analogRead(analog_buttons_pin) > 600) {
           // Button released — clean up and return to normal mode
           clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
+          config_dirty = 1;
           #ifdef FEATURE_COMMAND_LINE_INTERFACE
           Serial.print(F("WPM: "));
           Serial.println(configuration.wpm);
@@ -2093,6 +2174,7 @@ void service_command_mode() {
 
         if ((left == LOW) && (right == LOW)) {
           // Squeeze = done (also works as exit for full command mode W command)
+          config_dirty = 1;
           #ifdef FEATURE_COMMAND_LINE_INTERFACE
           Serial.print(F("WPM: "));
           Serial.println(configuration.wpm);
