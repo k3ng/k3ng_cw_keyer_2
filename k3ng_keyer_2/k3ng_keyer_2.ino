@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.1810"
+#define CODE_VERSION "2-20260626.1900"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -45,6 +45,11 @@ int serial_number = 1;    // incremented by \E and \C macros; decremented by \N
 
 byte config_dirty = 0;
 unsigned long last_config_write = 0;
+
+#ifdef FEATURE_PADDLE_ECHO
+long          paddle_echo_buffer            = 0;
+unsigned long paddle_echo_buffer_decode_time = 0;
+#endif
 
 #ifdef FEATURE_POTENTIOMETER
 byte pot_wpm_low_value  = initial_pot_wpm_low_value;
@@ -134,10 +139,15 @@ void print_serial_help();
 #endif
 #endif
 void say_hi();
+#if defined(FEATURE_MEMORIES) || defined(FEATURE_PADDLE_ECHO)
+int  convert_cw_number_to_ascii(long cw_code);
+#endif
+#ifdef FEATURE_PADDLE_ECHO
+void service_paddle_echo();
+#endif
 #ifdef FEATURE_MEMORIES
 int  memory_start(byte memory_number);
 int  memory_end(byte memory_number);
-int  convert_cw_number_to_ascii(long cw_code);
 void play_memory(byte memory_number);
 void program_memory(byte memory_number);
 #ifdef FEATURE_COMMAND_LINE_INTERFACE
@@ -235,6 +245,9 @@ void loop() {
   #ifdef FEATURE_POTENTIOMETER
   check_potentiometer();
   #endif
+  #ifdef FEATURE_PADDLE_ECHO
+  service_paddle_echo();
+  #endif
   check_for_dirty_configuration();
   #ifdef FEATURE_COMMAND_MODE
   service_command_mode();
@@ -331,6 +344,39 @@ void check_for_dirty_configuration() {
   }
 
 }
+
+// ---------------------------------------------------------------------------
+// Paddle echo (FEATURE_PADDLE_ECHO)
+// ---------------------------------------------------------------------------
+
+#ifdef FEATURE_PADDLE_ECHO
+
+void service_paddle_echo() {
+
+  static byte paddle_echo_space_sent = 1;
+
+  unsigned long dit_ms = 1200UL / configuration.wpm;
+
+  // Decode the accumulated buffer once the letter-space timeout expires
+  if (paddle_echo_buffer && millis() > paddle_echo_buffer_decode_time) {
+    int ch = convert_cw_number_to_ascii(paddle_echo_buffer);
+    if (ch > 0) Serial.write((char)ch);
+    paddle_echo_buffer = 0;
+    paddle_echo_buffer_decode_time = millis() + dit_ms * cw_scheduler.length_letterspace;
+    paddle_echo_space_sent = 0;
+  }
+
+  // Print a word space after the inter-word gap
+  if (!paddle_echo_buffer && !paddle_echo_space_sent &&
+      millis() > paddle_echo_buffer_decode_time +
+                 dit_ms * (cw_scheduler.length_wordspace - cw_scheduler.length_letterspace)) {
+    Serial.write(' ');
+    paddle_echo_space_sent = 1;
+  }
+
+}
+
+#endif // FEATURE_PADDLE_ECHO
 
 // ---------------------------------------------------------------------------
 // Speed potentiometer (FEATURE_POTENTIOMETER)
@@ -599,16 +645,28 @@ void check_paddles() {
       if (dit_buffer && (last_sent == DIT)) { dit_buffer = 0; }
       if (dah_buffer && (last_sent == DAH)) { dah_buffer = 0; }
 
+      #ifdef FEATURE_PADDLE_ECHO
+      unsigned long _pe_dit_ms = 1200UL / configuration.wpm;
+      #define PADDLE_ECHO_DIT() do { paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _pe_dit_ms * cw_scheduler.length_letterspace; } while(0)
+      #define PADDLE_ECHO_DAH() do { paddle_echo_buffer = paddle_echo_buffer * 10 + 2; paddle_echo_buffer_decode_time = millis() + _pe_dit_ms * cw_scheduler.length_letterspace; } while(0)
+      #endif
+
       if (configuration.paddle_mode == PADDLE_NORMAL) {
         if ((left == LOW) || (dit_buffer && (last_sent == DAH))) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
           dit_buffer = 0;
           last_sent  = DIT;
+          #ifdef FEATURE_PADDLE_ECHO
+          PADDLE_ECHO_DIT();
+          #endif
         }
         if ((right == LOW) || (dah_buffer && (last_sent == DIT))) {
           send_dah(&cw_scheduler, MANUAL_SENDING);
           dah_buffer = 0;
           last_sent  = DAH;
+          #ifdef FEATURE_PADDLE_ECHO
+          PADDLE_ECHO_DAH();
+          #endif
         }
       } else {
         // Reversed paddle
@@ -616,13 +674,24 @@ void check_paddles() {
           send_dah(&cw_scheduler, MANUAL_SENDING);
           dah_buffer = 0;
           last_sent  = DAH;
+          #ifdef FEATURE_PADDLE_ECHO
+          PADDLE_ECHO_DAH();
+          #endif
         }
         if ((right == LOW) || (dit_buffer && (last_sent == DAH))) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
           dit_buffer = 0;
           last_sent  = DIT;
+          #ifdef FEATURE_PADDLE_ECHO
+          PADDLE_ECHO_DIT();
+          #endif
         }
       }
+
+      #ifdef FEATURE_PADDLE_ECHO
+      #undef PADDLE_ECHO_DIT
+      #undef PADDLE_ECHO_DAH
+      #endif
 
     } else {
       // Scheduler is busy — latch the opposite paddle for iambic squeeze
@@ -683,6 +752,9 @@ void check_paddles() {
           schedule_cw_keydown_keyup(&cw_scheduler, &tx_ptt, REQUEST_KEY_UP, REQUEST_KEY_UP, &configuration);
         } else if ((cw_scheduler.cw_scheduler_state == IDLE) && (left == LOW)) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
+          #ifdef FEATURE_PADDLE_ECHO
+          { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * cw_scheduler.length_letterspace; }
+          #endif
         }
       }
     } else {
@@ -697,6 +769,9 @@ void check_paddles() {
           schedule_cw_keydown_keyup(&cw_scheduler, &tx_ptt, REQUEST_KEY_UP, REQUEST_KEY_UP, &configuration);
         } else if ((cw_scheduler.cw_scheduler_state == IDLE) && (right == LOW)) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
+          #ifdef FEATURE_PADDLE_ECHO
+          { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * cw_scheduler.length_letterspace; }
+          #endif
         }
       }
     }
@@ -1197,20 +1272,10 @@ void service_serial() {
 //
 // ---------------------------------------------------------------------------
 
-#ifdef FEATURE_MEMORIES
-
-int memory_start(byte memory_number) {
-  return (int)(memory_area_start +
-    (unsigned int)memory_number * ((memory_area_end - memory_area_start) / number_of_memories));
-}
-
-int memory_end(byte memory_number) {
-  return memory_start(memory_number) - 1 +
-    (memory_area_end - memory_area_start) / number_of_memories;
-}
+#if defined(FEATURE_MEMORIES) || defined(FEATURE_PADDLE_ECHO)
 
 // ---------------------------------------------------------------------------
-// convert_cw_number_to_ascii — decode accumulated dit(1)/dah(2)/space(9) code
+// convert_cw_number_to_ascii — decode accumulated dit(1)/dah(2) code to ASCII
 // ---------------------------------------------------------------------------
 int convert_cw_number_to_ascii(long cw_code) {
   switch (cw_code) {
@@ -1240,7 +1305,6 @@ int convert_cw_number_to_ascii(long cw_code) {
     case 2112:  return 'X';
     case 2122:  return 'Y';
     case 2211:  return 'Z';
-
     case 22222: return '0';
     case 12222: return '1';
     case 11222: return '2';
@@ -1251,19 +1315,32 @@ int convert_cw_number_to_ascii(long cw_code) {
     case 22111: return '7';
     case 22211: return '8';
     case 22221: return '9';
-
-    case 9:      return ' ';   // wordspace token
+    case 9:      return ' ';
     case 21122:  return '/';
-    case 21112:  return '=';   // BT
+    case 21112:  return '=';
     case 211112: return '-';
     case 121212: return '.';
     case 221122: return ',';
     case 112211: return '?';
     case 122121: return '@';
-    case 12121:  return '+';   // AR
-    case 222222: return '\\';  // six dahs — special hack for backslash (macro prefix)
+    case 12121:  return '+';
+    case 222222: return '\\';
   }
-  return -1;  // unknown
+  return -1;
+}
+
+#endif // FEATURE_MEMORIES || FEATURE_PADDLE_ECHO
+
+#ifdef FEATURE_MEMORIES
+
+int memory_start(byte memory_number) {
+  return (int)(memory_area_start +
+    (unsigned int)memory_number * ((memory_area_end - memory_area_start) / number_of_memories));
+}
+
+int memory_end(byte memory_number) {
+  return memory_start(memory_number) - 1 +
+    (memory_area_end - memory_area_start) / number_of_memories;
 }
 
 // ---------------------------------------------------------------------------

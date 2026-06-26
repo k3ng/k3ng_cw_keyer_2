@@ -34,6 +34,7 @@
 #define FEATURE_MEMORIES                                  // CW memory storage/playback via EEPROM (buttons 1-3, \1-\3, command mode P)
 #define FEATURE_MEMORY_MACROS                             // Backslash macro commands within memories (\S \E \C \N \W \Y \Z \D \U \V \T \F \I \0-\9)
 #define FEATURE_POTENTIOMETER                     // Speed control potentiometer (do not enable without hardware connected)
+#define FEATURE_PADDLE_ECHO                       // Echo paddle characters to serial port
 
 // *** Not implemented yet ***
 
@@ -49,7 +50,6 @@
 // #define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears the buffer if no paddle activity
 // #define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 // #define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO       // Dynamically adjust dah-to-dit ratio
-// #define FEATURE_PADDLE_ECHO                    // Echo paddle characters to serial port
 // #define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
 // #define FEATURE_STRAIGHT_KEY_ECHO              // Echo straight key characters to serial port
 // #define FEATURE_WINKEY_EMULATION               // Winkeyer protocol emulation (disable ASR — see docs)
