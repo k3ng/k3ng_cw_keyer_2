@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.1900"
+#define CODE_VERSION "2-20260626.1950"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -49,6 +49,7 @@ unsigned long last_config_write = 0;
 #ifdef FEATURE_PADDLE_ECHO
 long          paddle_echo_buffer            = 0;
 unsigned long paddle_echo_buffer_decode_time = 0;
+byte          paddle_echo_active            = 1;   // toggled by \*
 #endif
 
 #ifdef FEATURE_POTENTIOMETER
@@ -353,6 +354,8 @@ void check_for_dirty_configuration() {
 
 void service_paddle_echo() {
 
+  if (!paddle_echo_active) return;
+
   static byte paddle_echo_space_sent = 1;
 
   unsigned long dit_ms = 1200UL / configuration.wpm;
@@ -646,9 +649,10 @@ void check_paddles() {
       if (dah_buffer && (last_sent == DAH)) { dah_buffer = 0; }
 
       #ifdef FEATURE_PADDLE_ECHO
+      // dit element = 2 dit-times; dah element = 4 dit-times; add 1 dit-time letter-space margin
       unsigned long _pe_dit_ms = 1200UL / configuration.wpm;
-      #define PADDLE_ECHO_DIT() do { paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _pe_dit_ms * cw_scheduler.length_letterspace; } while(0)
-      #define PADDLE_ECHO_DAH() do { paddle_echo_buffer = paddle_echo_buffer * 10 + 2; paddle_echo_buffer_decode_time = millis() + _pe_dit_ms * cw_scheduler.length_letterspace; } while(0)
+      #define PADDLE_ECHO_DIT() do { if (paddle_echo_active) { paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _pe_dit_ms * 3; } } while(0)
+      #define PADDLE_ECHO_DAH() do { if (paddle_echo_active) { paddle_echo_buffer = paddle_echo_buffer * 10 + 2; paddle_echo_buffer_decode_time = millis() + _pe_dit_ms * 5; } } while(0)
       #endif
 
       if (configuration.paddle_mode == PADDLE_NORMAL) {
@@ -753,7 +757,7 @@ void check_paddles() {
         } else if ((cw_scheduler.cw_scheduler_state == IDLE) && (left == LOW)) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
           #ifdef FEATURE_PADDLE_ECHO
-          { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * cw_scheduler.length_letterspace; }
+          { if (paddle_echo_active) { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * 3; } }
           #endif
         }
       }
@@ -770,7 +774,7 @@ void check_paddles() {
         } else if ((cw_scheduler.cw_scheduler_state == IDLE) && (right == LOW)) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
           #ifdef FEATURE_PADDLE_ECHO
-          { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * cw_scheduler.length_letterspace; }
+          { if (paddle_echo_active) { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * 3; } }
           #endif
         }
       }
@@ -1006,6 +1010,9 @@ void print_serial_help() {
   #ifdef FEATURE_POTENTIOMETER
   Serial.println(F("\\V\t\tToggle potentiometer active/inactive"));
   #endif
+  #ifdef FEATURE_PADDLE_ECHO
+  Serial.println(F("\\*\t\tToggle paddle echo on/off"));
+  #endif
   Serial.println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
   Serial.println(F("\\1 \\2 \\3\tPlay memory 1/2/3"));
@@ -1162,6 +1169,14 @@ void process_cli_command(char cmd) {
         Serial.println(F("Enable FEATURE_SERIAL_HELP for help text"));
       #endif
       break;
+
+    #ifdef FEATURE_PADDLE_ECHO
+    case '*':
+      paddle_echo_active = !paddle_echo_active;
+      Serial.print(F("Paddle echo "));
+      Serial.println(paddle_echo_active ? F("On") : F("Off"));
+      break;
+    #endif
 
     case '\\':
       clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
