@@ -7,6 +7,8 @@
 #ifndef keyer_settings_h
 #define keyer_settings_h
 
+#include "keyer_2_serial.h"
+
 // ---------------------------------------------------------------------------
 // Default values
 // ---------------------------------------------------------------------------
@@ -94,5 +96,29 @@
 #define analog_buttons_r2                 1     // per-rung resistor value (relative units)
 #define analog_button_debounce_ms         200   // minimum ms between button events
 #define analog_button_hold_ms             500   // press duration threshold: < hold = short, >= hold = long
+
+// ---------------------------------------------------------------------------
+// Serial port configuration
+// Up to KEYER_MAX_SERIAL_PORTS (4) ports may be configured.
+// MODE: SERIAL_MODE_CLI, SERIAL_MODE_WINKEY (future), SERIAL_MODE_DISABLED
+// Each port needs a corresponding PORT, BAUD, and MODE define.
+// Port 0 is the primary port (boot messages printed here).
+// ---------------------------------------------------------------------------
+#define KEYER_SERIAL_PORT_0        Serial
+#define KEYER_SERIAL_PORT_0_BAUD   115200
+#define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_CLI
+
+// Uncomment to enable additional ports (Serial1/Serial2/Serial3 on Mega, etc.)
+// #define KEYER_SERIAL_PORT_1        Serial1
+// #define KEYER_SERIAL_PORT_1_BAUD   115200
+// #define KEYER_SERIAL_PORT_1_MODE   SERIAL_MODE_CLI
+
+// #define KEYER_SERIAL_PORT_2        Serial2
+// #define KEYER_SERIAL_PORT_2_BAUD   115200
+// #define KEYER_SERIAL_PORT_2_MODE   SERIAL_MODE_CLI
+
+// #define KEYER_SERIAL_PORT_3        Serial3
+// #define KEYER_SERIAL_PORT_3_BAUD   115200
+// #define KEYER_SERIAL_PORT_3_MODE   SERIAL_MODE_CLI
 
 #endif // keyer_settings_h

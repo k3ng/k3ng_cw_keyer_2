@@ -20,8 +20,9 @@
 
 */
 
-#define CODE_VERSION "2-20260626.2100"
+#define CODE_VERSION "2-20260626.2300"
 
+#include "keyer_2_serial.h"
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
 #include "keyer_2_pin_settings.h"
@@ -45,6 +46,11 @@ int serial_number = 1;    // incremented by \E and \C macros; decremented by \N
 
 byte config_dirty = 0;
 unsigned long last_config_write = 0;
+
+// Serial port array — built in setup() from KEYER_SERIAL_PORT_* defines
+Stream* primary_serial_port = &Serial;   // set before each CLI port service call
+KeyerSerialPort keyer_serial_ports[KEYER_MAX_SERIAL_PORTS];
+uint8_t keyer_num_serial_ports = 0;
 
 #ifdef FEATURE_PADDLE_ECHO
 long          paddle_echo_buffer            = 0;
@@ -177,12 +183,34 @@ void setup() {
   if (ptt_tx_1)   digitalWrite(ptt_tx_1,   LOW);
   noTone(sidetone_line);
 
-  // Serial port
-  Serial.begin(default_serial_baud_rate);
-  Serial.println(F("\r\nK3NG CW Keyer v2 by K3NG"));
-  Serial.print(F("Version "));
-  Serial.println(F(CODE_VERSION));
-  Serial.println(F("Type to send CW. \\? for help."));
+  // Serial ports — build port array from configured defines and print boot message on each CLI port
+  #ifdef KEYER_SERIAL_PORT_0
+  KEYER_SERIAL_PORT_0.begin(KEYER_SERIAL_PORT_0_BAUD);
+  keyer_serial_ports[keyer_num_serial_ports++] = { &KEYER_SERIAL_PORT_0, KEYER_SERIAL_PORT_0_BAUD, KEYER_SERIAL_PORT_0_MODE, 0 };
+  #endif
+  #ifdef KEYER_SERIAL_PORT_1
+  KEYER_SERIAL_PORT_1.begin(KEYER_SERIAL_PORT_1_BAUD);
+  keyer_serial_ports[keyer_num_serial_ports++] = { &KEYER_SERIAL_PORT_1, KEYER_SERIAL_PORT_1_BAUD, KEYER_SERIAL_PORT_1_MODE, 0 };
+  #endif
+  #ifdef KEYER_SERIAL_PORT_2
+  KEYER_SERIAL_PORT_2.begin(KEYER_SERIAL_PORT_2_BAUD);
+  keyer_serial_ports[keyer_num_serial_ports++] = { &KEYER_SERIAL_PORT_2, KEYER_SERIAL_PORT_2_BAUD, KEYER_SERIAL_PORT_2_MODE, 0 };
+  #endif
+  #ifdef KEYER_SERIAL_PORT_3
+  KEYER_SERIAL_PORT_3.begin(KEYER_SERIAL_PORT_3_BAUD);
+  keyer_serial_ports[keyer_num_serial_ports++] = { &KEYER_SERIAL_PORT_3, KEYER_SERIAL_PORT_3_BAUD, KEYER_SERIAL_PORT_3_MODE, 0 };
+  #endif
+
+  for (uint8_t _i = 0; _i < keyer_num_serial_ports; _i++) {
+    if (keyer_serial_ports[_i].mode == SERIAL_MODE_CLI) {
+      primary_serial_port = keyer_serial_ports[_i].port;
+      primary_serial_port->println(F("\r\nK3NG CW Keyer v2 by K3NG"));
+      primary_serial_port->print(F("Version "));
+      primary_serial_port->println(F(CODE_VERSION));
+      primary_serial_port->println(F("Type to send CW. \\? for help."));
+    }
+  }
+  primary_serial_port = keyer_serial_ports[0].port;  // restore to port 0 default
 
   // Initialize runtime state and structs with defaults
   initialize_state();
@@ -215,7 +243,7 @@ void setup() {
       tone(sidetone_line, hz_low_beep);  delay(150);
       noTone(sidetone_line);             delay(50);
     }
-    Serial.println(F("Factory reset complete."));
+    primary_serial_port->println(F("Factory reset complete."));
   } else {
     // Normal boot: load settings from EEPROM if they exist
     if (read_settings_from_eeprom()) {
@@ -410,7 +438,7 @@ void service_paddle_echo() {
   // Decode the accumulated buffer once the letter-space timeout expires
   if (paddle_echo_buffer && millis() > paddle_echo_buffer_decode_time) {
     int ch = convert_cw_number_to_ascii(paddle_echo_buffer);
-    if (ch > 0) Serial.write((char)ch);
+    if (ch > 0) primary_serial_port->write((char)ch);
     paddle_echo_buffer = 0;
     paddle_echo_buffer_decode_time = millis() + dit_ms * cw_scheduler.length_letterspace;
     paddle_echo_space_sent = 0;
@@ -420,7 +448,7 @@ void service_paddle_echo() {
   if (!paddle_echo_buffer && !paddle_echo_space_sent &&
       millis() > paddle_echo_buffer_decode_time +
                  dit_ms * (cw_scheduler.length_wordspace - cw_scheduler.length_letterspace)) {
-    Serial.write(' ');
+    primary_serial_port->write(' ');
     paddle_echo_space_sent = 1;
   }
 
@@ -467,8 +495,8 @@ void check_potentiometer() {
     last_pot_wpm_read = pot_wpm;
     config_dirty = 1;
     #ifdef FEATURE_COMMAND_LINE_INTERFACE
-    Serial.print(F("WPM: "));
-    Serial.println(configuration.wpm);
+    primary_serial_port->print(F("WPM: "));
+    primary_serial_port->println(configuration.wpm);
     #endif
   }
 
@@ -484,7 +512,7 @@ void check_potentiometer() {
 void cw_key(struct tx_ptt_struct *tx_ptt_ptr, int state, config_struct *configuration_ptr) {
 
   #ifdef DEBUG_CW_KEY
-    Serial.print(F("cw_key: ")); Serial.println(state);
+    primary_serial_port->print(F("cw_key: ")); primary_serial_port->println(state);
   #endif
 
   if (tx_ptt_ptr->cw_tx_enabled) {
@@ -667,6 +695,11 @@ void check_paddles() {
   // In command mode the CW input is handled by service_command_mode() — skip here.
   #ifdef FEATURE_COMMAND_MODE
   if (keyer_machine_mode == KEYER_COMMAND_MODE) return;
+  #endif
+
+  // In beacon mode paddles are not used for keying.
+  #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
+  if (keyer_machine_mode == KEYER_BEACON) return;
   #endif
 
   #define DIT 1
@@ -876,25 +909,25 @@ int serial_get_number_input(byte max_digits, int lower_limit, int upper_limit) {
     check_ptt_tail();
     service_sound(SERVICE, 0, 0);
 
-    if (Serial.available() > 0) {
-      char ch = (char)Serial.read();
+    if (primary_serial_port->available() > 0) {
+      char ch = (char)primary_serial_port->read();
 
       if ((ch == '\r') || (ch == '\n')) {
-        Serial.println();
+        primary_serial_port->println();
         break;
       } else if (ch == 27) {  // ESC — cancel
         clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
         return -1;
       } else if ((ch >= '0') && (ch <= '9')) {
-        Serial.write(ch);
+        primary_serial_port->write(ch);
         if (num_idx < max_digits) {
           num_buf[num_idx++] = ch;
         } else {
-          Serial.println(F("\r\nError"));
+          primary_serial_port->println(F("\r\nError"));
           return -1;
         }
       } else {
-        Serial.println(F("\r\nError"));
+        primary_serial_port->println(F("\r\nError"));
         return -1;
       }
     }
@@ -906,7 +939,7 @@ int serial_get_number_input(byte max_digits, int lower_limit, int upper_limit) {
   if ((value > lower_limit) && (value < upper_limit)) {
     return value;
   }
-  Serial.println(F("Error"));
+  primary_serial_port->println(F("Error"));
   return -1;
 
 }
@@ -919,8 +952,8 @@ void serial_wpm_set() {
   if (new_wpm > 0) {
     configuration.wpm = new_wpm;
     config_dirty = 1;
-    Serial.print(F("WPM: "));
-    Serial.println(configuration.wpm);
+    primary_serial_port->print(F("WPM: "));
+    primary_serial_port->println(configuration.wpm);
   }
 
 }
@@ -933,9 +966,9 @@ void serial_set_sidetone_freq() {
   if (new_hz > 0) {
     configuration.sidetone_frequency = new_hz;
     config_dirty = 1;
-    Serial.print(F("Sidetone: "));
-    Serial.print(configuration.sidetone_frequency);
-    Serial.println(F(" Hz"));
+    primary_serial_port->print(F("Sidetone: "));
+    primary_serial_port->print(configuration.sidetone_frequency);
+    primary_serial_port->println(F(" Hz"));
   }
 
 }
@@ -949,8 +982,8 @@ void serial_change_wordspace() {
     cw_scheduler.length_wordspace    = new_ws;
     configuration.length_wordspace   = new_ws;
     config_dirty = 1;
-    Serial.print(F("Wordspace: "));
-    Serial.println(new_ws);
+    primary_serial_port->print(F("Wordspace: "));
+    primary_serial_port->println(new_ws);
   }
 
 }
@@ -960,15 +993,15 @@ void serial_change_wordspace() {
 void serial_tune_command() {
 
   delay(50);
-  while (Serial.available() > 0) { Serial.read(); }
+  while (primary_serial_port->available() > 0) { primary_serial_port->read(); }
 
   cw_key(&tx_ptt, RIG_TRANSMIT, &configuration);
-  Serial.println(F("Tuning - press any key to stop"));
+  primary_serial_port->println(F("Tuning - press any key to stop"));
 
-  while (Serial.available() == 0) {
+  while (primary_serial_port->available() == 0) {
     service_sound(SERVICE, 0, 0);
   }
-  while (Serial.available() > 0) { Serial.read(); }
+  while (primary_serial_port->available() > 0) { primary_serial_port->read(); }
 
   cw_key(&tx_ptt, RIG_RECEIVE, &configuration);
 
@@ -978,74 +1011,74 @@ void serial_tune_command() {
 
 void serial_status() {
 
-  Serial.println();
-  Serial.print(F("Mode: "));
+  primary_serial_port->println();
+  primary_serial_port->print(F("Mode: "));
   switch (configuration.keyer_mode) {
-    case IAMBIC_A: Serial.println(F("Iambic A")); break;
-    case IAMBIC_B: Serial.println(F("Iambic B")); break;
-    case BUG:      Serial.println(F("Bug"));      break;
-    case STRAIGHT: Serial.println(F("Straight")); break;
-    default:       Serial.println(F("?"));        break;
+    case IAMBIC_A: primary_serial_port->println(F("Iambic A")); break;
+    case IAMBIC_B: primary_serial_port->println(F("Iambic B")); break;
+    case BUG:      primary_serial_port->println(F("Bug"));      break;
+    case STRAIGHT: primary_serial_port->println(F("Straight")); break;
+    default:       primary_serial_port->println(F("?"));        break;
   }
-  Serial.print(F("Paddle: "));
-  Serial.println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
-  Serial.print(F("WPM: "));
-  Serial.println(configuration.wpm);
-  Serial.print(F("Sidetone: "));
-  Serial.print(configuration.sidetone_frequency);
-  Serial.println(F(" Hz"));
-  Serial.print(F("TX: "));
-  Serial.println(tx_ptt.cw_tx_enabled ? F("Enabled") : F("Disabled (sidetone only)"));
-  Serial.print(F("PTT lead: "));
-  Serial.print(tx_ptt.ptt_lead_time);
-  Serial.println(F(" ms"));
-  Serial.print(F("PTT tail: "));
-  Serial.print(tx_ptt.ptt_tail_time);
-  Serial.println(F(" ms"));
-  Serial.print(F("Wordspace: "));
-  Serial.println(cw_scheduler.length_wordspace);
+  primary_serial_port->print(F("Paddle: "));
+  primary_serial_port->println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
+  primary_serial_port->print(F("WPM: "));
+  primary_serial_port->println(configuration.wpm);
+  primary_serial_port->print(F("Sidetone: "));
+  primary_serial_port->print(configuration.sidetone_frequency);
+  primary_serial_port->println(F(" Hz"));
+  primary_serial_port->print(F("TX: "));
+  primary_serial_port->println(tx_ptt.cw_tx_enabled ? F("Enabled") : F("Disabled (sidetone only)"));
+  primary_serial_port->print(F("PTT lead: "));
+  primary_serial_port->print(tx_ptt.ptt_lead_time);
+  primary_serial_port->println(F(" ms"));
+  primary_serial_port->print(F("PTT tail: "));
+  primary_serial_port->print(tx_ptt.ptt_tail_time);
+  primary_serial_port->println(F(" ms"));
+  primary_serial_port->print(F("Wordspace: "));
+  primary_serial_port->println(cw_scheduler.length_wordspace);
 
   #ifdef FEATURE_PADDLE_ECHO
-  Serial.print(F("Paddle echo: "));
-  Serial.println(paddle_echo_active ? F("On") : F("Off"));
+  primary_serial_port->print(F("Paddle echo: "));
+  primary_serial_port->println(paddle_echo_active ? F("On") : F("Off"));
   #endif
 
   #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
-  Serial.print(F("Beacon: "));
-  Serial.print(keyer_machine_mode == KEYER_BEACON ? F("Active") : F("Inactive"));
+  primary_serial_port->print(F("Beacon: "));
+  primary_serial_port->print(keyer_machine_mode == KEYER_BEACON ? F("Active") : F("Inactive"));
   #ifdef FEATURE_BEACON_SETTING
-  Serial.print(F("  Boot: "));
-  Serial.print(configuration.beacon_mode_on_boot_up ? F("Enabled") : F("Disabled"));
+  primary_serial_port->print(F("  Boot: "));
+  primary_serial_port->print(configuration.beacon_mode_on_boot_up ? F("Enabled") : F("Disabled"));
   #endif
-  Serial.println();
+  primary_serial_port->println();
   #endif
 
   #ifdef FEATURE_POTENTIOMETER
-  Serial.print(F("Pot: "));
-  Serial.print(pot_activated ? F("Active") : F("Inactive"));
-  Serial.print(F("  WPM range: "));
-  Serial.print(pot_wpm_low_value);
-  Serial.print(F("-"));
-  Serial.println(pot_wpm_high_value);
+  primary_serial_port->print(F("Pot: "));
+  primary_serial_port->print(pot_activated ? F("Active") : F("Inactive"));
+  primary_serial_port->print(F("  WPM range: "));
+  primary_serial_port->print(pot_wpm_low_value);
+  primary_serial_port->print(F("-"));
+  primary_serial_port->println(pot_wpm_high_value);
   #endif
 
   #ifdef FEATURE_MEMORIES
-  Serial.println(F("Memories:"));
+  primary_serial_port->println(F("Memories:"));
   for (byte m = 0; m < number_of_memories; m++) {
-    Serial.print(F("  "));
-    Serial.print(m + 1);
-    Serial.print(F(": "));
+    primary_serial_port->print(F("  "));
+    primary_serial_port->print(m + 1);
+    primary_serial_port->print(F(": "));
     int start = memory_start(m);
     int end   = memory_end(m);
     bool empty = true;
     for (int y = start; y <= end; y++) {
       byte b = EEPROM.read(y);
       if (b == 255) break;
-      Serial.write((char)b);
+      primary_serial_port->write((char)b);
       empty = false;
     }
-    if (empty) Serial.print(F("(empty)"));
-    Serial.println();
+    if (empty) primary_serial_port->print(F("(empty)"));
+    primary_serial_port->println();
   }
   #endif
 
@@ -1056,32 +1089,33 @@ void serial_status() {
 #ifdef FEATURE_SERIAL_HELP
 void print_serial_help() {
 
-  Serial.println(F("\r\nK3NG CW Keyer v2 Commands:"));
-  Serial.println(F("\\A\t\tIambic A"));
-  Serial.println(F("\\B\t\tIambic B"));
-  Serial.println(F("\\G\t\tBug mode"));
-  Serial.println(F("\\I\t\tTX enable/disable toggle"));
-  Serial.println(F("\\N\t\tToggle paddle reverse"));
-  Serial.println(F("\\S\t\tStatus"));
-  Serial.println(F("\\T\t\tTune (hold TX until keypress)"));
-  Serial.println(F("\\F####\t\tSet sidetone Hz"));
-  Serial.println(F("\\W###\t\tSet WPM"));
-  Serial.println(F("\\Y##\t\tSet wordspace (dit units; default 7)"));
-  Serial.println(F("\\\\\t\tClear send buffer"));
-  Serial.println(F("\\~\t\tReset"));
+  primary_serial_port->println(F("\r\nK3NG CW Keyer v2 Commands:"));
+  primary_serial_port->println(F("\\A\t\tIambic A"));
+  primary_serial_port->println(F("\\B\t\tIambic B"));
+  primary_serial_port->println(F("\\G\t\tBug mode"));
+  primary_serial_port->println(F("\\I\t\tTX enable/disable toggle"));
+  primary_serial_port->println(F("\\N\t\tToggle paddle reverse"));
+  primary_serial_port->println(F("\\S\t\tStatus"));
+  primary_serial_port->println(F("\\T\t\tTune (hold TX until keypress)"));
+  primary_serial_port->println(F("\\F####\t\tSet sidetone Hz"));
+  primary_serial_port->println(F("\\W###\t\tSet WPM"));
+  primary_serial_port->println(F("\\Y##\t\tSet wordspace (dit units; default 7)"));
+  primary_serial_port->println(F("\\$\t\tSave settings to EEPROM immediately"));
+  primary_serial_port->println(F("\\\\\t\tClear send buffer"));
+  primary_serial_port->println(F("\\~\t\tReset"));
   #ifdef FEATURE_POTENTIOMETER
-  Serial.println(F("\\V\t\tToggle potentiometer active/inactive"));
+  primary_serial_port->println(F("\\V\t\tToggle potentiometer active/inactive"));
   #endif
   #ifdef FEATURE_PADDLE_ECHO
-  Serial.println(F("\\*\t\tToggle paddle echo on/off"));
+  primary_serial_port->println(F("\\*\t\tToggle paddle echo on/off"));
   #endif
   #if defined(FEATURE_BEACON_SETTING) && defined(FEATURE_MEMORIES)
-  Serial.println(F("\\_\t\tToggle beacon-on-boot enable/disable"));
+  primary_serial_port->println(F("\\_\t\tToggle beacon-on-boot enable/disable"));
   #endif
-  Serial.println(F("\\?\t\tThis help"));
+  primary_serial_port->println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
-  Serial.println(F("\\1 \\2 \\3\tPlay memory 1/2/3"));
-  Serial.println(F("\\P#<text>\tProgram memory # with <text> (e.g. \\P1CQ CQ DE K3NG)"));
+  primary_serial_port->println(F("\\1 \\2 \\3\tPlay memory 1/2/3"));
+  primary_serial_port->println(F("\\P#<text>\tProgram memory # with <text> (e.g. \\P1CQ CQ DE K3NG)"));
   #endif
 
 }
@@ -1107,19 +1141,19 @@ void cli_program_memory() {
   unsigned long deadline = millis() + 5000UL;
   char num_char = 0;
   while (millis() < deadline) {
-    if (Serial.available()) {
-      num_char = (char)Serial.read();
+    if (primary_serial_port->available()) {
+      num_char = (char)primary_serial_port->read();
       break;
     }
   }
 
   if (num_char < '1' || num_char > ('0' + number_of_memories)) {
-    Serial.println(F("Cancelled."));
+    primary_serial_port->println(F("Cancelled."));
     return;
   }
 
   byte mem_num = num_char - '1';    // 0-based
-  Serial.write(num_char);           // echo digit
+  primary_serial_port->write(num_char);           // echo digit
 
   // Read message characters until CR / LF, writing each to EEPROM
   int mem_index = 0;
@@ -1127,28 +1161,28 @@ void cli_program_memory() {
 
   deadline = millis() + 30000UL;   // 30 s to finish typing the message
   while (millis() < deadline) {
-    if (!Serial.available()) continue;
-    char c = (char)Serial.read();
+    if (!primary_serial_port->available()) continue;
+    char c = (char)primary_serial_port->read();
     if (c == '\r' || c == '\n') break;
     if (mem_index >= mem_max) {
       // Slot full — drain remaining input until CR
       while (millis() < deadline) {
-        if (Serial.available() && (Serial.read() == '\r' || Serial.read() == '\n')) break;
+        if (primary_serial_port->available() && (primary_serial_port->read() == '\r' || primary_serial_port->read() == '\n')) break;
       }
-      Serial.println(F(" [truncated]"));
+      primary_serial_port->println(F(" [truncated]"));
       break;
     }
-    Serial.write(c);  // echo
+    primary_serial_port->write(c);  // echo
     EEPROM.update(memory_start(mem_num) + mem_index, (byte)toupper(c));
     mem_index++;
   }
 
   EEPROM.update(memory_start(mem_num) + mem_index, 255);  // sentinel
 
-  Serial.println();
-  Serial.print(F("Memory "));
-  Serial.print((int)(mem_num + 1));
-  Serial.println(F(" saved."));
+  primary_serial_port->println();
+  primary_serial_port->print(F("Memory "));
+  primary_serial_port->print((int)(mem_num + 1));
+  primary_serial_port->println(F(" saved."));
 }
 #endif // FEATURE_MEMORIES
 
@@ -1161,19 +1195,19 @@ void process_cli_command(char cmd) {
     case 'A':
       configuration.keyer_mode = IAMBIC_A;
       config_dirty = 1;
-      Serial.println(F("Iambic A"));
+      primary_serial_port->println(F("Iambic A"));
       break;
 
     case 'B':
       configuration.keyer_mode = IAMBIC_B;
       config_dirty = 1;
-      Serial.println(F("Iambic B"));
+      primary_serial_port->println(F("Iambic B"));
       break;
 
     case 'G':
       configuration.keyer_mode = BUG;
       config_dirty = 1;
-      Serial.println(F("Bug"));
+      primary_serial_port->println(F("Bug"));
       break;
 
     case 'F':
@@ -1184,15 +1218,15 @@ void process_cli_command(char cmd) {
       tx_ptt.cw_tx_enabled          = !tx_ptt.cw_tx_enabled;
       configuration.cw_tx_enabled   = tx_ptt.cw_tx_enabled;
       config_dirty = 1;
-      Serial.print(F("TX "));
-      Serial.println(tx_ptt.cw_tx_enabled ? F("Enabled") : F("Disabled (sidetone only)"));
+      primary_serial_port->print(F("TX "));
+      primary_serial_port->println(tx_ptt.cw_tx_enabled ? F("Enabled") : F("Disabled (sidetone only)"));
       break;
 
     case 'N':
       configuration.paddle_mode = (configuration.paddle_mode == PADDLE_NORMAL) ? PADDLE_REVERSE : PADDLE_NORMAL;
       config_dirty = 1;
-      Serial.print(F("Paddles "));
-      Serial.println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
+      primary_serial_port->print(F("Paddles "));
+      primary_serial_port->println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
       break;
 
     case 'S':
@@ -1215,10 +1249,10 @@ void process_cli_command(char cmd) {
     case '1': case '2': case '3':
       if ((cmd - '1') < number_of_memories) {
         play_memory(cmd - '1');
-        Serial.print(F("Playing memory "));
-        Serial.println((int)(cmd - '0'));
+        primary_serial_port->print(F("Playing memory "));
+        primary_serial_port->println((int)(cmd - '0'));
       } else {
-        Serial.println(F("No such memory"));
+        primary_serial_port->println(F("No such memory"));
       }
       break;
 
@@ -1231,15 +1265,15 @@ void process_cli_command(char cmd) {
       #ifdef FEATURE_SERIAL_HELP
         print_serial_help();
       #else
-        Serial.println(F("Enable FEATURE_SERIAL_HELP for help text"));
+        primary_serial_port->println(F("Enable FEATURE_SERIAL_HELP for help text"));
       #endif
       break;
 
     #ifdef FEATURE_PADDLE_ECHO
     case '*':
       paddle_echo_active = !paddle_echo_active;
-      Serial.print(F("Paddle echo "));
-      Serial.println(paddle_echo_active ? F("On") : F("Off"));
+      primary_serial_port->print(F("Paddle echo "));
+      primary_serial_port->println(paddle_echo_active ? F("On") : F("Off"));
       break;
     #endif
 
@@ -1247,14 +1281,20 @@ void process_cli_command(char cmd) {
     case '_':
       configuration.beacon_mode_on_boot_up = !configuration.beacon_mode_on_boot_up;
       config_dirty = 1;
-      Serial.print(F("Beacon on boot: "));
-      Serial.println(configuration.beacon_mode_on_boot_up ? F("Enabled") : F("Disabled"));
+      primary_serial_port->print(F("Beacon on boot: "));
+      primary_serial_port->println(configuration.beacon_mode_on_boot_up ? F("Enabled") : F("Disabled"));
       break;
     #endif
 
+    case '$':
+      write_settings_to_eeprom();
+      config_dirty = 0;
+      primary_serial_port->println(F("Settings saved to EEPROM"));
+      break;
+
     case '\\':
       clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
-      Serial.println(F("Buffer cleared"));
+      primary_serial_port->println(F("Buffer cleared"));
       break;
 
     case '~':
@@ -1280,18 +1320,18 @@ void process_cli_command(char cmd) {
     #ifdef FEATURE_POTENTIOMETER
     case 'V':
       pot_activated = !pot_activated;
-      Serial.print(F("Pot "));
-      Serial.println(pot_activated ? F("Active") : F("Inactive"));
+      primary_serial_port->print(F("Pot "));
+      primary_serial_port->println(pot_activated ? F("Active") : F("Inactive"));
       break;
     #endif // FEATURE_POTENTIOMETER
     case 'X': // Switch TX
     case 'Z': // Autospace
-      Serial.println(F("Not implemented yet"));
+      primary_serial_port->println(F("Not implemented yet"));
       break;
 
     default:
-      Serial.print(F("Unknown command: \\"));
-      Serial.println(cmd);
+      primary_serial_port->print(F("Unknown command: \\"));
+      primary_serial_port->println(cmd);
       break;
 
   }
@@ -1302,29 +1342,27 @@ void process_cli_command(char cmd) {
 // service_serial() — main serial service routine called from loop()
 // ---------------------------------------------------------------------------
 
-void service_serial() {
+static void service_cli_port(KeyerSerialPort* sp) {
 
-  static boolean backslash_flag = false;
+  while (sp->port->available() > 0) {
 
-  while (Serial.available() > 0) {
-
-    char incoming = (char)Serial.read();
+    char incoming = (char)sp->port->read();
 
     if (incoming == 27) {  // ESC — clear buffer immediately
       clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
-      backslash_flag = false;
+      sp->backslash_flag = false;
       continue;
     }
 
-    if (backslash_flag) {
-      backslash_flag = false;
+    if (sp->backslash_flag) {
+      sp->backslash_flag = false;
       incoming = toupper(incoming);
-      Serial.write(incoming);
-      Serial.println();
+      primary_serial_port->write(incoming);
+      primary_serial_port->println();
       process_cli_command(incoming);
     } else if (incoming == '\\') {
-      backslash_flag = true;
-      Serial.write('\\');
+      sp->backslash_flag = true;
+      primary_serial_port->write('\\');
     } else {
       // Regular character — queue for CW sending
       add_to_cw_char_send_buffer(&cw_scheduler, toupper(incoming));
@@ -1334,12 +1372,22 @@ void service_serial() {
 
 }
 
+void service_serial() {
+  for (uint8_t _i = 0; _i < keyer_num_serial_ports; _i++) {
+    if (keyer_serial_ports[_i].mode != SERIAL_MODE_CLI) continue;
+    primary_serial_port = keyer_serial_ports[_i].port;
+    service_cli_port(&keyer_serial_ports[_i]);
+  }
+}
+
 #else // !FEATURE_COMMAND_LINE_INTERFACE
 
-// Fallback: characters go directly to CW buffer, no commands
 void service_serial() {
-  while (Serial.available() > 0) {
-    add_to_cw_char_send_buffer(&cw_scheduler, toupper((char)Serial.read()));
+  for (uint8_t _i = 0; _i < keyer_num_serial_ports; _i++) {
+    if (keyer_serial_ports[_i].mode != SERIAL_MODE_CLI) continue;
+    while (keyer_serial_ports[_i].port->available() > 0) {
+      add_to_cw_char_send_buffer(&cw_scheduler, toupper((char)keyer_serial_ports[_i].port->read()));
+    }
   }
 }
 
@@ -1664,10 +1712,10 @@ void program_memory(byte memory_number) {
   tx_ptt.cw_tx_enabled = 0;  // sidetone practice only while programming
 
   #ifdef FEATURE_COMMAND_LINE_INTERFACE
-  Serial.println();
-  Serial.print(F("Pgm mem "));
-  Serial.print(memory_number + 1);
-  Serial.println(F(": key message; squeeze or button 0 to end"));
+  primary_serial_port->println();
+  primary_serial_port->print(F("Pgm mem "));
+  primary_serial_port->print(memory_number + 1);
+  primary_serial_port->println(F(": key message; squeeze or button 0 to end"));
   #endif
 
   // Entry beep
@@ -1801,7 +1849,7 @@ void program_memory(byte memory_number) {
         EEPROM.update(memory_start(memory_number) + memory_location_index, (byte)ascii);
         memory_location_index++;
         #ifdef FEATURE_COMMAND_LINE_INTERFACE
-        Serial.write((byte)ascii);
+        primary_serial_port->write((byte)ascii);
         #endif
         if (cwchar == 9) {
           // Reset last_element_time so the NEXT wordspace requires a fresh gap.
@@ -1827,10 +1875,10 @@ void program_memory(byte memory_number) {
   EEPROM.update(memory_start(memory_number) + memory_location_index, 255);
 
   #ifdef FEATURE_COMMAND_LINE_INTERFACE
-  Serial.println();
-  Serial.print(F("Memory "));
-  Serial.print(memory_number + 1);
-  Serial.println(F(" saved"));
+  primary_serial_port->println();
+  primary_serial_port->print(F("Memory "));
+  primary_serial_port->print(memory_number + 1);
+  primary_serial_port->println(F(" saved"));
   #endif
 
   tx_ptt.cw_tx_enabled = saved_tx;
@@ -2036,9 +2084,9 @@ void check_buttons() {
       }
       #else
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.print(F("Button "));
-      Serial.print(button);
-      Serial.println(F(" (no memory feature)"));
+      primary_serial_port->print(F("Button "));
+      primary_serial_port->print(button);
+      primary_serial_port->println(F(" (no memory feature)"));
       #endif
       #endif // FEATURE_MEMORIES
       break;
@@ -2149,7 +2197,7 @@ void command_mode_dispatch() {
       configuration.keyer_mode = IAMBIC_A;
       config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.println(F("Iambic A"));
+      primary_serial_port->println(F("Iambic A"));
       #endif
       break;
 
@@ -2158,14 +2206,14 @@ void command_mode_dispatch() {
       configuration.keyer_mode = IAMBIC_B;
       config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.println(F("Iambic B"));
+      primary_serial_port->println(F("Iambic B"));
       #endif
       break;
 
     case 221:   // G (--.)  — bug restored on exit, stay iambic for cmd input
       command_mode_saved_keyer = BUG;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.println(F("Bug mode (on exit)"));
+      primary_serial_port->println(F("Bug mode (on exit)"));
       #endif
       break;
 
@@ -2174,8 +2222,8 @@ void command_mode_dispatch() {
       configuration.cw_tx_enabled     = command_mode_saved_tx;
       config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.print(F("TX "));
-      Serial.println(command_mode_saved_tx ? F("Enabled") : F("Disabled"));
+      primary_serial_port->print(F("TX "));
+      primary_serial_port->println(command_mode_saved_tx ? F("Enabled") : F("Disabled"));
       #endif
       break;
 
@@ -2184,8 +2232,8 @@ void command_mode_dispatch() {
                                     PADDLE_REVERSE : PADDLE_NORMAL;
       config_dirty = 1;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.print(F("Paddles "));
-      Serial.println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
+      primary_serial_port->print(F("Paddles "));
+      primary_serial_port->println((configuration.paddle_mode == PADDLE_NORMAL) ? F("Normal") : F("Reversed"));
       #endif
       break;
 
@@ -2194,7 +2242,7 @@ void command_mode_dispatch() {
       command_mode_tune_latched = 0;
       command_mode_tune_rprev  = HIGH;
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.println(F("Tune: left=momentary  right=latch  squeeze=exit"));
+      primary_serial_port->println(F("Tune: left=momentary  right=latch  squeeze=exit"));
       #endif
       command_mode_state = CMD_TUNE;
       return;   // ack after squeeze exits tune
@@ -2206,7 +2254,7 @@ void command_mode_dispatch() {
     #ifdef FEATURE_MEMORIES
     case 1221:  // P (.--.) — program a memory; next CW digit selects which one
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.println(F("Pgm memory: key 1-3"));
+      primary_serial_port->println(F("Pgm memory: key 1-3"));
       #endif
       command_mode_cw_char         = 0;
       command_mode_element_in_prog = 0;
@@ -2217,9 +2265,9 @@ void command_mode_dispatch() {
 
     default:
       #ifdef FEATURE_COMMAND_LINE_INTERFACE
-      Serial.print(F("? ("));
-      Serial.print(cw);
-      Serial.println(F(")"));
+      primary_serial_port->print(F("? ("));
+      primary_serial_port->print(cw);
+      primary_serial_port->println(F(")"));
       #endif
       add_to_cw_char_send_buffer(&cw_scheduler, '?');
       command_mode_state = CMD_WAIT_ACK;
@@ -2278,7 +2326,7 @@ void command_mode_enter_speed_adjust() {
   }
 
   #ifdef FEATURE_COMMAND_LINE_INTERFACE
-  Serial.println(F("Speed: left=+WPM  right=-WPM  squeeze=done"));
+  primary_serial_port->println(F("Speed: left=+WPM  right=-WPM  squeeze=done"));
   #endif
 
   command_mode_state = CMD_SPEED_ADJUST;
@@ -2315,7 +2363,7 @@ void service_command_mode() {
         command_mode_idle_since      = 0;
         command_mode_state           = CMD_INPUT;
         #ifdef FEATURE_COMMAND_LINE_INTERFACE
-        Serial.println(F("\r\nCommand mode  (X to exit)"));
+        primary_serial_port->println(F("\r\nCommand mode  (X to exit)"));
         #endif
       }
       break;
@@ -2386,7 +2434,7 @@ void service_command_mode() {
           configuration.keyer_mode  = command_mode_saved_keyer;
           keyer_machine_mode        = KEYER_NORMAL;
           #ifdef FEATURE_COMMAND_LINE_INTERFACE
-          Serial.println(F("Normal mode"));
+          primary_serial_port->println(F("Normal mode"));
           #endif
         }
       }
@@ -2407,8 +2455,8 @@ void service_command_mode() {
           clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
           config_dirty = 1;
           #ifdef FEATURE_COMMAND_LINE_INTERFACE
-          Serial.print(F("WPM: "));
-          Serial.println(configuration.wpm);
+          primary_serial_port->print(F("WPM: "));
+          primary_serial_port->println(configuration.wpm);
           #endif
           tx_ptt.cw_tx_enabled     = command_mode_saved_tx;
           configuration.keyer_mode  = command_mode_saved_keyer;
@@ -2429,8 +2477,8 @@ void service_command_mode() {
           // Squeeze = done (also works as exit for full command mode W command)
           config_dirty = 1;
           #ifdef FEATURE_COMMAND_LINE_INTERFACE
-          Serial.print(F("WPM: "));
-          Serial.println(configuration.wpm);
+          primary_serial_port->print(F("WPM: "));
+          primary_serial_port->println(configuration.wpm);
           #endif
           if (command_mode_full) {
             add_to_cw_char_send_buffer(&cw_scheduler, command_mode_acknowledgement_character);
@@ -2569,7 +2617,7 @@ void service_command_mode() {
         keyer_machine_mode        = KEYER_NORMAL;
         command_mode_state        = CMD_IDLE;
         #ifdef FEATURE_COMMAND_LINE_INTERFACE
-        Serial.println(F("Normal mode"));
+        primary_serial_port->println(F("Normal mode"));
         #endif
       }
       break;
