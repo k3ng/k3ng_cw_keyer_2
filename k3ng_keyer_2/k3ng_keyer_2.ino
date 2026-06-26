@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.2000"
+#define CODE_VERSION "2-20260626.2010"
 
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
@@ -1336,7 +1336,7 @@ int convert_cw_number_to_ascii(long cw_code) {
     case 22211: return '8';
     case 22221: return '9';
     case 9:      return ' ';
-    case 21122:  return '/';
+    case 21121:  return '/';
     case 21112:  return '=';
     case 211112: return '-';
     case 121212: return '.';
