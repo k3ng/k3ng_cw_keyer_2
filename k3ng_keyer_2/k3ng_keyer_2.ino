@@ -201,6 +201,10 @@ void cli_program_memory();
 
 void setup() {
 
+  #ifndef FEATURE_WINKEY_EMULATION
+  delay(2000);
+  #endif
+  
   // Pin modes
   pinMode(paddle_left,      INPUT_PULLUP);
   pinMode(paddle_right,     INPUT_PULLUP);
