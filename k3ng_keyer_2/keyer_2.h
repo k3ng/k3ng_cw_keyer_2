@@ -80,9 +80,10 @@ enum element_buffer_type {
 // ---------------------------------------------------------------------------
 // Keyer machine modes (overall state)
 // ---------------------------------------------------------------------------
-#define KEYER_NORMAL       0
-#define KEYER_COMMAND_MODE 1
-#define KEYER_BEACON       2
+#define KEYER_NORMAL          0
+#define KEYER_COMMAND_MODE    1
+#define KEYER_BEACON          2
+#define KEYER_MEMORY_PROGRAM  3   // interactive memory recording mode (non-blocking)
 
 // ---------------------------------------------------------------------------
 // Keyer modes

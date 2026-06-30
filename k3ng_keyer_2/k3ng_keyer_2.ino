@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260626.2500"
+#define CODE_VERSION "2-20260630.0001"
 
 #include "keyer_2_serial.h"
 #include "keyer_2.h"
@@ -107,7 +107,28 @@ byte          command_mode_tune_rprev     = HIGH;  // previous right-paddle stat
 
 #ifdef FEATURE_MEMORIES
 uint16_t memory_area_end = 0;   // set in setup() to EEPROM.length() - 1
+
+// Memory programming mode sub-states (used when keyer_machine_mode == KEYER_MEMORY_PROGRAM)
+#define MEM_PROG_ENTRY_BEEP  0   // playing entry beep
+#define MEM_PROG_INTER       1   // between elements; watch paddles and timeouts
+#define MEM_PROG_ELEMENT     2   // element queued; waiting for scheduler idle
+#define MEM_PROG_EXIT_BEEP   3   // playing exit beep; then return to prior mode
+
+byte          mem_prog_state         = MEM_PROG_ENTRY_BEEP;
+byte          mem_prog_slot          = 0;
+long          mem_prog_cwchar        = 0;
+byte          mem_prog_paddle_hit    = 0;
+int           mem_prog_index         = 0;
+byte          mem_prog_consec_sp     = 0;
+unsigned long mem_prog_last_elem     = 0;
+unsigned long mem_prog_last_dd       = 0;
+unsigned long mem_prog_sound_until   = 0;
+byte          mem_prog_saved_tx      = 0;
+byte          mem_prog_from_cmd_mode = 0;   // 1 = entered from command mode P-command
+#ifdef FEATURE_MEMORY_MACROS
+byte          mem_prog_macro_flag    = 0;
 #endif
+#endif // FEATURE_MEMORIES
 
 // ---------------------------------------------------------------------------
 // forward declarations for functions defined below
@@ -167,7 +188,8 @@ void service_paddle_echo();
 int  memory_start(byte memory_number);
 int  memory_end(byte memory_number);
 void play_memory(byte memory_number);
-void program_memory(byte memory_number);
+void memory_program_enter(byte memory_number, byte from_cmd_mode);
+void service_memory_program();
 #ifdef FEATURE_COMMAND_LINE_INTERFACE
 void cli_program_memory();
 #endif
@@ -322,6 +344,9 @@ void loop() {
   service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
   #ifdef FEATURE_WINKEY_EMULATION
   service_winkey_housekeeping(&winkey_state, &cw_scheduler, &tx_ptt, &configuration);
+  #endif
+  #ifdef FEATURE_MEMORIES
+  service_memory_program();
   #endif
   #ifdef FEATURE_COMMAND_MODE
   service_command_mode();
@@ -728,6 +753,11 @@ void check_paddles() {
   // In beacon mode paddles are not used for keying.
   #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
   if (keyer_machine_mode == KEYER_BEACON) return;
+  #endif
+
+  // In memory programming mode paddle input is handled by service_memory_program().
+  #ifdef FEATURE_MEMORIES
+  if (keyer_machine_mode == KEYER_MEMORY_PROGRAM) return;
   #endif
 
   #define DIT 1
@@ -1772,19 +1802,76 @@ void play_memory(byte memory_number) {
 }
 
 // ---------------------------------------------------------------------------
-// program_memory — interactively record a CW message into EEPROM
-//
-// Blocking: loops until button 0 pressed, both paddles squeezed with no
-// element in progress, or memory slot is full.  Audio feedback (sidetone)
-// is provided for each element entered by spinning on service_cw_scheduler().
-// Safe to call from command mode (check_paddles early-return is already set).
+// mem_prog_write_char() — decode mem_prog_cwchar, write to EEPROM, echo to CLI.
+// Returns 1 if the slot is now full, 0 otherwise.
 // ---------------------------------------------------------------------------
-void program_memory(byte memory_number) {
+static byte mem_prog_write_char() {
+  if (mem_prog_cwchar == 0) return 0;
+  int ascii = convert_cw_number_to_ascii(mem_prog_cwchar);
+  if (ascii > 0) {
+    EEPROM.update(memory_start(mem_prog_slot) + mem_prog_index, (byte)ascii);
+    mem_prog_index++;
+    #ifdef FEATURE_COMMAND_LINE_INTERFACE
+    primary_serial_port->write((byte)ascii);
+    #endif
+    if (mem_prog_cwchar == 9) {
+      // Wordspace written: reset element timer so next space needs a fresh gap.
+      // mem_prog_last_dd is intentionally NOT reset (end-timeout uses real keying only).
+      mem_prog_last_elem = millis();
+      mem_prog_consec_sp++;
+    } else {
+      mem_prog_consec_sp = 0;
+      #ifdef FEATURE_MEMORY_MACROS
+      mem_prog_macro_flag = (ascii == '\\') ? 1 : 0;
+      #endif
+    }
+  }
+  mem_prog_cwchar     = 0;
+  mem_prog_paddle_hit = 0;
+  return ((memory_start(mem_prog_slot) + mem_prog_index) >= memory_end(mem_prog_slot));
+}
+
+// ---------------------------------------------------------------------------
+// mem_prog_start_exit() — write sentinel, print confirmation, start exit beep
+// ---------------------------------------------------------------------------
+static void mem_prog_start_exit() {
+  EEPROM.update(memory_start(mem_prog_slot) + mem_prog_index, 255);
+  #ifdef FEATURE_COMMAND_LINE_INTERFACE
+  primary_serial_port->println();
+  primary_serial_port->print(F("Memory "));
+  primary_serial_port->print(mem_prog_slot + 1);
+  primary_serial_port->println(F(" saved"));
+  #endif
+  tone(sidetone_line, hz_high_beep);
+  mem_prog_sound_until = millis() + 100UL;
+  mem_prog_state       = MEM_PROG_EXIT_BEEP;
+}
+
+// ---------------------------------------------------------------------------
+// memory_program_enter() — initialise state and enter KEYER_MEMORY_PROGRAM mode.
+// Called from the button handler (from_cmd_mode=0) or CMD_PROGRAM_MEM_WAIT (=1).
+// ---------------------------------------------------------------------------
+void memory_program_enter(byte memory_number, byte from_cmd_mode) {
   if (memory_number >= number_of_memories) return;
 
-  byte saved_tx = tx_ptt.cw_tx_enabled;
   clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
-  tx_ptt.cw_tx_enabled = 0;  // sidetone practice only while programming
+
+  mem_prog_slot          = memory_number;
+  mem_prog_from_cmd_mode = from_cmd_mode;
+  mem_prog_state         = MEM_PROG_ENTRY_BEEP;
+  mem_prog_cwchar        = 0;
+  mem_prog_paddle_hit    = 0;
+  mem_prog_index         = 0;
+  mem_prog_consec_sp     = 0;
+  mem_prog_last_elem     = millis();
+  mem_prog_last_dd       = millis();
+  mem_prog_sound_until   = millis() + 100UL;
+  mem_prog_saved_tx      = tx_ptt.cw_tx_enabled;
+  #ifdef FEATURE_MEMORY_MACROS
+  mem_prog_macro_flag    = 0;
+  #endif
+
+  tx_ptt.cw_tx_enabled = 0;   // sidetone only while programming
 
   #ifdef FEATURE_COMMAND_LINE_INTERFACE
   primary_serial_port->println();
@@ -1793,175 +1880,139 @@ void program_memory(byte memory_number) {
   primary_serial_port->println(F(": key message; squeeze or button 0 to end"));
   #endif
 
-  // Entry beep
   tone(sidetone_line, hz_high_beep);
-  delay(100);
-  noTone(sidetone_line);
+  keyer_machine_mode = KEYER_MEMORY_PROGRAM;
+}
 
-  int  memory_location_index = 0;
-  byte loop2 = 1;
-  byte consecutive_spaces = 0;
-  const byte max_consecutive_spaces = 3;   // caps trailing spaces; end-timeout governs actual exit
-  #ifdef FEATURE_MEMORY_MACROS
-  byte macro_flag = 0;  // when set, suppress wordspace after backslash so next char is the macro letter
-  #endif
+// ---------------------------------------------------------------------------
+// service_memory_program() — non-blocking memory programming state machine.
+// Called every loop() when keyer_machine_mode == KEYER_MEMORY_PROGRAM.
+//
+// Sub-states (MEM_PROG_*):
+//   ENTRY_BEEP — wait 100 ms for entry tone, then advance to INTER
+//   INTER      — watch paddles; check letterspace/wordspace/end timeouts
+//   ELEMENT    — element queued in scheduler; wait for scheduler idle
+//   EXIT_BEEP  — wait 100 ms for exit tone, then restore prior mode
+//
+// Timer notes (matching original blocking program_memory() logic):
+//   mem_prog_last_elem — reset on every element AND after each wordspace write.
+//                        Drives wordspace detection (each space needs a fresh gap).
+//   mem_prog_last_dd   — reset only on real paddle hits.
+//                        Drives end-of-programming regardless of spaces inserted.
+// Each element's scheduler run already consumes 1 dit of inter-element silence,
+// so letterspace/wordspace multipliers subtract 1 (same as the blocking version).
+// ---------------------------------------------------------------------------
+void service_memory_program() {
 
-  // Two timers, both live outside the outer loop so they persist across characters:
-  //   last_element_time  — reset on every dit/dah AND on every space written.
-  //                        Drives wordspace detection (each space needs a fresh gap).
-  //   last_dit_dah_time  — reset ONLY on actual dit/dah paddle hits.
-  //                        Drives end-of-programming: fires when no real keying for
-  //                        memory_program_end_timeout_ms, regardless of space resets.
-  //
-  // Each element's blocking spin already waits through the 1-dit inter-element keyup,
-  // so letterspace/wordspace checks subtract 1 from the multiplier.
-  unsigned long last_element_time  = millis();
-  unsigned long last_dit_dah_time  = millis();
+  if (keyer_machine_mode != KEYER_MEMORY_PROGRAM) return;
 
-  // Wait for first paddle press or button 0 exit.
-  // read_analog_buttons() (averaged) is used instead of raw analogRead to avoid
-  // falsely exiting when button 1 is still held (button 1 ADC ≈ 93 < 100 raw threshold).
-  while ((digitalRead(paddle_left) == HIGH) && (digitalRead(paddle_right) == HIGH)) {
-    #ifdef FEATURE_BUTTONS
-    if (read_analog_buttons() == 0) { loop2 = 0; break; }
-    #endif
-    service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
-    service_sound(SERVICE, 0, 0);
-  }
+  const byte max_consecutive_spaces = 3;
 
-  while (loop2) {
+  switch (mem_prog_state) {
 
-    long cwchar = 0;
-    byte paddle_hit = 0;
-    // last_element_time intentionally NOT reset here — persists from last element sent
-    byte loop1 = 1;
+    // -----------------------------------------------------------------
+    case MEM_PROG_ENTRY_BEEP:
+      if (millis() >= mem_prog_sound_until) {
+        noTone(sidetone_line);
+        mem_prog_state = MEM_PROG_INTER;
+      }
+      break;
 
-    while (loop1) {
+    // -----------------------------------------------------------------
+    case MEM_PROG_INTER: {
 
-      // Exit: button 0 pressed (use averaged read to avoid false trigger from button 1 ADC ≈ 93)
       #ifdef FEATURE_BUTTONS
-      if (read_analog_buttons() == 0) { loop1 = 0; loop2 = 0; break; }
+      if (read_analog_buttons() == 0) { mem_prog_start_exit(); break; }
       #endif
 
-      byte lp = digitalRead(paddle_left);
-      byte rp = digitalRead(paddle_right);
+      byte left  = digitalRead(paddle_left);
+      byte right = digitalRead(paddle_right);
 
-      if ((lp == LOW) && (rp == HIGH)) {
-        // Dit
+      // Squeeze with nothing keyed in current char → end of message
+      if ((left == LOW) && (right == LOW) && !mem_prog_paddle_hit) {
+        mem_prog_start_exit();
+        break;
+      }
+
+      if ((left == LOW) && (right == HIGH)) {
         send_dit(&cw_scheduler, MANUAL_SENDING);
-        while ((cw_scheduler.element_send_buffer_bytes > 0) ||
-               (cw_scheduler.cw_scheduler_state != IDLE)) {
-          service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
-          service_sound(SERVICE, 0, 0);
-        }
-        cwchar = cwchar * 10 + 1;
-        paddle_hit = 1;
-        consecutive_spaces = 0;
-        last_element_time = last_dit_dah_time = millis();
+        mem_prog_cwchar = mem_prog_cwchar * 10 + 1;
+        mem_prog_state  = MEM_PROG_ELEMENT;
+        break;
+      }
 
-      } else if ((rp == LOW) && (lp == HIGH)) {
-        // Dah
+      if ((right == LOW) && (left == HIGH)) {
         send_dah(&cw_scheduler, MANUAL_SENDING);
-        while ((cw_scheduler.element_send_buffer_bytes > 0) ||
-               (cw_scheduler.cw_scheduler_state != IDLE)) {
-          service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
-          service_sound(SERVICE, 0, 0);
-        }
-        cwchar = cwchar * 10 + 2;
-        paddle_hit = 1;
-        consecutive_spaces = 0;
-        last_element_time = last_dit_dah_time = millis();
+        mem_prog_cwchar = mem_prog_cwchar * 10 + 2;
+        mem_prog_state  = MEM_PROG_ELEMENT;
+        break;
+      }
 
-      } else if ((lp == LOW) && (rp == LOW) && !paddle_hit) {
-        // Squeeze with nothing keyed yet in this char → end of message
-        loop1 = 0; loop2 = 0;
+      // Neither paddle pressed — check timeouts
+      {
+        unsigned long dit_ms = 1200UL / configuration.wpm;
+        unsigned long now    = millis();
 
-      } else {
-        // Both HIGH (no paddle): check letterspace / wordspace timeouts.
-        // Subtract 1 from each multiplier because the element spin already consumed
-        // 1 dit of inter-element silence, so only (N-1) additional dits are needed.
-        unsigned long dit_ms = 1200 / configuration.wpm;
-        if (paddle_hit) {
-          // Letterspace: standard 3 dits total; 1 already elapsed → wait 2 more
-          if ((millis() - last_element_time) > (dit_ms * (cw_scheduler.length_letterspace - 1))) {
-            loop1 = 0;  // character complete
+        if (mem_prog_paddle_hit) {
+          // Letterspace: 3 dits total; 1 already elapsed in element → wait 2 more
+          if ((now - mem_prog_last_elem) > (dit_ms * (cw_scheduler.length_letterspace - 1))) {
+            if (mem_prog_write_char()) { mem_prog_start_exit(); }
           }
-        } else if (memory_location_index > 0) {
-          // Only check for spaces/end after the first character has been keyed.
-          unsigned long now = millis();
-          // End-of-programming: based on last real dit/dah, not last space write.
-          // Spaces reset last_element_time but NOT last_dit_dah_time, so this
-          // timeout correctly fires even while spaces keep being inserted.
-          if ((now - last_dit_dah_time) > (unsigned long)memory_program_end_timeout_ms) {
-            loop1 = 0; loop2 = 0;
-          } else if ((now - last_element_time) > (dit_ms * (cw_scheduler.length_wordspace - 1))) {
-            // Wordspace: standard 7 dits; 1 already elapsed in spin → wait 6 more.
-            // Only insert if under the consecutive-space cap (prevents filling slot with spaces).
-            // Suppress wordspace immediately after a backslash so the macro letter follows directly.
+        } else if (mem_prog_index > 0) {
+          // After first char: check end-of-programming and wordspace
+          if ((now - mem_prog_last_dd) > (unsigned long)memory_program_end_timeout_ms) {
+            mem_prog_start_exit();
+          } else if ((now - mem_prog_last_elem) > (dit_ms * (cw_scheduler.length_wordspace - 1))) {
             #ifdef FEATURE_MEMORY_MACROS
-            if (consecutive_spaces < max_consecutive_spaces && !macro_flag) {
+            if (mem_prog_consec_sp < max_consecutive_spaces && !mem_prog_macro_flag) {
             #else
-            if (consecutive_spaces < max_consecutive_spaces) {
+            if (mem_prog_consec_sp < max_consecutive_spaces) {
             #endif
-              cwchar = 9;   // space token
-              loop1 = 0;
+              mem_prog_cwchar = 9;   // space token
+              if (mem_prog_write_char()) { mem_prog_start_exit(); }
             }
-            // If cap reached, just keep spinning — end-timeout will fire eventually.
+            // If cap reached, keep spinning — end-timeout will fire eventually.
           }
         }
       }
+      break;
+    }
 
-      service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
-      service_sound(SERVICE, 0, 0);
-    } // inner loop
-
-    if (!loop2) break;
-
-    // Write the decoded character to EEPROM
-    if (cwchar > 0) {
-      int ascii = convert_cw_number_to_ascii(cwchar);
-      if (ascii > 0) {
-        EEPROM.update(memory_start(memory_number) + memory_location_index, (byte)ascii);
-        memory_location_index++;
-        #ifdef FEATURE_COMMAND_LINE_INTERFACE
-        primary_serial_port->write((byte)ascii);
-        #endif
-        if (cwchar == 9) {
-          // Reset last_element_time so the NEXT wordspace requires a fresh gap.
-          // last_dit_dah_time is intentionally NOT reset here — it only moves on real elements.
-          last_element_time = millis();
-          consecutive_spaces++;
-        } else {
-          consecutive_spaces = 0;
-          #ifdef FEATURE_MEMORY_MACROS
-          macro_flag = (ascii == '\\') ? 1 : 0;  // set flag after backslash, clear on any other char
-          #endif
-        }
+    // -----------------------------------------------------------------
+    case MEM_PROG_ELEMENT:
+      // Wait for the scheduler to go idle after the dit/dah
+      if ((cw_scheduler.element_send_buffer_bytes == 0) &&
+          (cw_scheduler.cw_scheduler_state == IDLE)) {
+        mem_prog_paddle_hit = 1;
+        mem_prog_consec_sp  = 0;
+        mem_prog_last_elem  = millis();
+        mem_prog_last_dd    = millis();
+        mem_prog_state      = MEM_PROG_INTER;
       }
-    }
+      // Allow button-0 abort even while an element is sounding
+      #ifdef FEATURE_BUTTONS
+      if (read_analog_buttons() == 0) { mem_prog_start_exit(); }
+      #endif
+      break;
 
-    // Memory slot full?
-    if ((memory_start(memory_number) + memory_location_index) >= memory_end(memory_number)) {
-      loop2 = 0;
-    }
-  } // outer loop
+    // -----------------------------------------------------------------
+    case MEM_PROG_EXIT_BEEP:
+      if (millis() >= mem_prog_sound_until) {
+        noTone(sidetone_line);
+        tx_ptt.cw_tx_enabled = mem_prog_saved_tx;
+        #ifdef FEATURE_COMMAND_MODE
+        if (mem_prog_from_cmd_mode) {
+          add_to_cw_char_send_buffer(&cw_scheduler, command_mode_acknowledgement_character);
+          command_mode_state = CMD_WAIT_ACK;
+          keyer_machine_mode = KEYER_COMMAND_MODE;
+          break;
+        }
+        #endif
+        keyer_machine_mode = KEYER_NORMAL;
+      }
+      break;
 
-  // Write terminating sentinel
-  EEPROM.update(memory_start(memory_number) + memory_location_index, 255);
-
-  #ifdef FEATURE_COMMAND_LINE_INTERFACE
-  primary_serial_port->println();
-  primary_serial_port->print(F("Memory "));
-  primary_serial_port->print(memory_number + 1);
-  primary_serial_port->println(F(" saved"));
-  #endif
-
-  tx_ptt.cw_tx_enabled = saved_tx;
-
-  // Confirmation beep
-  tone(sidetone_line, hz_high_beep);
-  delay(100);
-  noTone(sidetone_line);
+  } // end switch
 }
 
 #endif // FEATURE_MEMORIES
@@ -2074,6 +2125,11 @@ int8_t read_analog_buttons() {
 
 void check_buttons() {
 
+  // Memory programming mode owns all paddle/button input.
+  #ifdef FEATURE_MEMORIES
+  if (keyer_machine_mode == KEYER_MEMORY_PROGRAM) return;
+  #endif
+
   static unsigned long last_press_ms = 0;
 
   // Debounce gate
@@ -2119,11 +2175,10 @@ void check_buttons() {
   }
   #endif
 
-  // Long press on button 1+: program the corresponding memory (blocking interactive).
-  // Wait-for-release happens inside program_memory() (user ends with squeeze/button).
+  // Long press on button 1+: enter memory programming mode (non-blocking).
   #ifdef FEATURE_MEMORIES
   if (held && (button > 0) && (button <= number_of_memories)) {
-    program_memory(button - 1);
+    memory_program_enter(button - 1, 0);
     last_press_ms = millis();
     return;
   }
@@ -2415,6 +2470,11 @@ void service_command_mode() {
 
   if (command_mode_state == CMD_IDLE) return;
 
+  // Memory programming mode takes over input; pause command-mode processing.
+  #ifdef FEATURE_MEMORIES
+  if (keyer_machine_mode == KEYER_MEMORY_PROGRAM) return;
+  #endif
+
   switch (command_mode_state) {
 
     // --- Entry sounds ---
@@ -2651,13 +2711,14 @@ void service_command_mode() {
               case 11122: mem_num = 2; break;   // 3
             }
             if (mem_num < number_of_memories) {
-              program_memory(mem_num);
-              add_to_cw_char_send_buffer(&cw_scheduler, command_mode_acknowledgement_character);
+              // Enter non-blocking memory programming mode.
+              // service_memory_program() will send the ack and restore CMD_WAIT_ACK when done.
+              memory_program_enter(mem_num, 1);
             } else {
               add_to_cw_char_send_buffer(&cw_scheduler, '?');
+              command_mode_state = CMD_WAIT_ACK;
             }
             command_mode_cw_char = 0;
-            command_mode_state   = CMD_WAIT_ACK;
           }
         }
 
