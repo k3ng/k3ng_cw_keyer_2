@@ -209,6 +209,7 @@ struct tx_ptt_struct {
   uint8_t  pin_tx;                 // Arduino pin for TX key line
   uint8_t  pin_ptt;                // Arduino pin for PTT line
   uint8_t  pin_sidetone;           // Arduino pin for sidetone output
+  uint8_t  sidetone_enabled;       // 1 = sidetone active; 0 = sidetone muted (Winkey PINCONFIG bit 1)
 };
 
 // ---------------------------------------------------------------------------

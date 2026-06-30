@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260630.0002"
+#define CODE_VERSION "2-20260630.0003"
 
 #include "keyer_2_serial.h"
 #include "keyer_2.h"
@@ -402,6 +402,7 @@ void initialize_state() {
   tx_ptt.ptt_lead_time     = initial_ptt_lead_time_ms;
   tx_ptt.key_state         = RIG_RECEIVE;
   tx_ptt.cw_tx_enabled     = 1;
+  tx_ptt.sidetone_enabled  = 1;
   tx_ptt.pin_tx            = tx_key_line_1;
   tx_ptt.pin_ptt           = ptt_tx_1;
   tx_ptt.pin_sidetone      = sidetone_line;
@@ -624,6 +625,16 @@ void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key) {
 void sidetone(byte on) {
 
   static byte sidetone_state = 0;
+
+  if (on) {
+    // Global sidetone disable (Winkey PINCONFIG bit 1 = 0)
+    if (!tx_ptt.sidetone_enabled) { on = 0; }
+    // Paddle-only sidetone: suppress during automatic (serial/Winkey) sending
+    #ifdef FEATURE_WINKEY_EMULATION
+    else if (winkey_state.paddle_only_sidetone &&
+             cw_scheduler.current_sending_type == AUTOMATIC_SENDING) { on = 0; }
+    #endif
+  }
 
   if (on && !sidetone_state) {
     service_sound(TONE_ON, configuration.sidetone_frequency, 0);

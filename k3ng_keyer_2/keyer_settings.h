@@ -105,10 +105,10 @@
 // Port 0 is the primary port (boot messages printed here).
 // ---------------------------------------------------------------------------
 #define KEYER_SERIAL_PORT_0        Serial
-#define KEYER_SERIAL_PORT_0_BAUD   115200
-#define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_CLI
-// #define KEYER_SERIAL_PORT_0_BAUD   1200
-// #define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_WINKEY
+// #define KEYER_SERIAL_PORT_0_BAUD   115200
+// #define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_CLI
+#define KEYER_SERIAL_PORT_0_BAUD   1200
+#define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_WINKEY
 
 // Uncomment to enable additional ports (Serial1/Serial2/Serial3 on Mega, etc.)
 //#define KEYER_SERIAL_PORT_1        Serial1

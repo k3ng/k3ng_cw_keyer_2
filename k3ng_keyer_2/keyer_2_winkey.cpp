@@ -539,7 +539,10 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
   }
 
   if (wk->winkey_status == WINKEY_SIDETONE_FREQ_COMMAND) {
-    if (b >= 1 && b <= 10) cfg->sidetone_frequency = wk_sidetone_hz[b];
+    // Bit 7: paddle-only sidetone flag.  Bits 0-6: frequency index (1-10).
+    wk->paddle_only_sidetone = (b & 0x80) ? 1 : 0;
+    uint8_t idx = b & 0x7F;
+    if (idx >= 1 && idx <= 10) cfg->sidetone_frequency = wk_sidetone_hz[idx];
     wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
     return;
   }
@@ -581,6 +584,8 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
   }
 
   if (wk->winkey_status == WINKEY_SET_PINCONFIG_COMMAND) {
+    // Bit 1: sidetone enable (1=on, 0=muted).  Bit 0: PTT enable (informational; not acted on here).
+    ptt_s->sidetone_enabled = (b & 0x02) ? 1 : 0;
     wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
     return;
   }

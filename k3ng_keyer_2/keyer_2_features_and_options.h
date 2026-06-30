@@ -27,7 +27,7 @@
 
 // #define OPTION_DO_NOT_SAY_HI                           // Skip the startup CW send (or change HI_TEXT to customize)
 
-#define FEATURE_COMMAND_LINE_INTERFACE                    // Full v1-compatible CLI over serial port
+//#define FEATURE_COMMAND_LINE_INTERFACE                    // Full v1-compatible CLI over serial port
 #define FEATURE_SERIAL_HELP                               // \? help text in CLI
 #define FEATURE_COMMAND_MODE                              // Button-activated CW command mode
 #define FEATURE_BUTTONS                                   // Analog multiplexed button array (R1/R2 resistor ladder on analog_buttons_pin)
@@ -39,11 +39,11 @@
 #define FEATURE_BEACON_SETTING                    // \_ CLI command to persist beacon-on-boot setting to EEPROM
 #define OPTION_BEACON_MODE_MEMORY_REPEAT_TIME     // Delay between successive memory-1 playbacks in beacon mode
 #define OPTION_BEACON_MODE_PTT_TAIL_TIME          // Wait for PTT tail to drop before replaying in beacon mode
-//#define FEATURE_WINKEY_EMULATION               // Winkeyer 2 protocol emulation (disable ASR — see docs)
+#define FEATURE_WINKEY_EMULATION               // Winkeyer 2 protocol emulation (disable ASR — see docs)
 
-//#define DEBUG_WINKEY_EMULATION             // Verbose Winkey debug output on DEBUG_WINKEY_PORT
-//#define DEBUG_WINKEY_PORT       Serial3    // Serial port for Winkey debug output
-//#define DEBUG_WINKEY_PORT_BAUD  115200     // Baud rate for debug port
+#define DEBUG_WINKEY_EMULATION             // Verbose Winkey debug output on DEBUG_WINKEY_PORT
+#define DEBUG_WINKEY_PORT       Serial3    // Serial port for Winkey debug output
+#define DEBUG_WINKEY_PORT_BAUD  115200     // Baud rate for debug port
 
 // *** Not implemented yet ***
 
