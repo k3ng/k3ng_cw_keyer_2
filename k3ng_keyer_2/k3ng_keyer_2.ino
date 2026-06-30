@@ -20,7 +20,7 @@
 
 */
 
-#define CODE_VERSION "2-20260630.0001"
+#define CODE_VERSION "2-20260630.0002"
 
 #include "keyer_2_serial.h"
 #include "keyer_2.h"
@@ -1188,7 +1188,8 @@ void print_serial_help() {
   primary_serial_port->println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
   primary_serial_port->println(F("\\1 \\2 \\3\tPlay memory 1/2/3"));
-  primary_serial_port->println(F("\\P#<text>\tProgram memory # with <text> (e.g. \\P1CQ CQ DE K3NG)"));
+  primary_serial_port->println(F("\\P#<text>\tProgram memory # with text (e.g. \\P1CQ CQ DE K3NG)"));
+  primary_serial_port->println(F("\\P#\t\tProgram memory # via paddle (Enter with no text)"));
   #endif
 
 }
@@ -1198,16 +1199,10 @@ void print_serial_help() {
 #ifdef FEATURE_MEMORIES
 // cli_program_memory() — serial CLI handler for \P
 //
-// Syntax: \P<n><text><CR>
-//   <n>    = memory number 1–N (typed immediately after \P, no space)
-//   <text> = message text, optionally including backslash macro sequences
-//   <CR>   = Enter key terminates the message
-//
-// Example: \P1CQ CQ CQ DE K3NG\E
+// Syntax: \P<n><text><CR>  — write text directly into memory slot <n>
+//         \P<n><CR>        — enter interactive paddle programming mode for slot <n>
 //
 // If no digit follows \P within 5 s the command is cancelled.
-// If the digit is followed immediately by CR (empty message), the memory is
-// erased (written with just the 0xFF sentinel).
 void cli_program_memory() {
 
   // Read the memory number digit
@@ -1228,14 +1223,30 @@ void cli_program_memory() {
   byte mem_num = num_char - '1';    // 0-based
   primary_serial_port->write(num_char);           // echo digit
 
-  // Read message characters until CR / LF, writing each to EEPROM
+  // Read the first character of the message (with a short timeout)
+  deadline = millis() + 5000UL;
+  char first_char = 0;
+  while (millis() < deadline) {
+    if (primary_serial_port->available()) {
+      first_char = (char)primary_serial_port->read();
+      break;
+    }
+  }
+
+  // \P<n><CR> — no text → enter paddle programming mode
+  if (first_char == '\r' || first_char == '\n' || first_char == 0) {
+    primary_serial_port->println();
+    memory_program_enter(mem_num, 0);
+    return;
+  }
+
+  // \P<n><text><CR> — write text directly to EEPROM
   int mem_index = 0;
-  int mem_max   = memory_end(mem_num) - memory_start(mem_num);  // max usable bytes
+  int mem_max   = memory_end(mem_num) - memory_start(mem_num);
+  char c        = first_char;   // already read; process before looping
 
   deadline = millis() + 30000UL;   // 30 s to finish typing the message
-  while (millis() < deadline) {
-    if (!primary_serial_port->available()) continue;
-    char c = (char)primary_serial_port->read();
+  while (1) {
     if (c == '\r' || c == '\n') break;
     if (mem_index >= mem_max) {
       // Slot full — drain remaining input until CR
@@ -1248,6 +1259,13 @@ void cli_program_memory() {
     primary_serial_port->write(c);  // echo
     EEPROM.update(memory_start(mem_num) + mem_index, (byte)toupper(c));
     mem_index++;
+
+    // Read next character
+    c = 0;
+    while (millis() < deadline) {
+      if (primary_serial_port->available()) { c = (char)primary_serial_port->read(); break; }
+    }
+    if (c == 0) break;   // timeout
   }
 
   EEPROM.update(memory_start(mem_num) + mem_index, 255);  // sentinel
