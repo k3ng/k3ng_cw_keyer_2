@@ -1,0 +1,89 @@
+#ifndef keyer_2_winkey_h
+#define keyer_2_winkey_h
+
+#include <Arduino.h>
+#include "keyer_2.h"
+
+// Winkey protocol version reported to host
+#define WINKEY_VERSION  23   // 23 = WK2, 10 = WK1
+
+// Parse states
+#define WK_IDLE              0
+#define WK_ADMIN             1   // waiting for admin sub-byte
+#define WK_ADMIN_ECHO        2   // waiting for echo byte
+#define WK_SPEED             3   // 0x02: waiting for WPM
+#define WK_WEIGHTING         4   // 0x03
+#define WK_PTT_LEAD          5   // 0x04 byte 1
+#define WK_PTT_TAIL          6   // 0x04 byte 2
+#define WK_POT1              7   // 0x05 byte 1
+#define WK_POT2              8   // 0x05 byte 2
+#define WK_POT3              9   // 0x05 byte 3
+#define WK_PAUSE             10  // 0x06
+#define WK_PINCONFIG         11  // 0x09
+#define WK_KEY               12  // 0x0B
+#define WK_FARNSWORTH        13  // 0x0D
+#define WK_SETMODE           14  // 0x0E
+#define WK_LOAD_SETTINGS     15  // 0x0F: 15-byte bulk load
+#define WK_FIRST_EXTENSION   16  // 0x10
+#define WK_KEYING_COMP       17  // 0x11
+#define WK_UNSUPPORTED_1     18  // consume 1 more byte
+#define WK_SOFTWARE_PADDLE   19  // 0x14
+#define WK_POINTER           20  // 0x16
+#define WK_POINTER_01        21  // 0x16/0x01 overwrite pos byte
+#define WK_POINTER_02        35  // 0x16/0x02 append-mode pos byte (consume 1)
+#define WK_POINTER_03        22  // 0x16/0x03 null fill pos byte
+#define WK_DAH_DIT_RATIO     23  // 0x17
+#define WK_BUFFERED_SPEED    24  // 0x1C
+#define WK_BUFFERED_HSCW     25  // 0x1D
+#define WK_MERGE_1           26  // 0x1B char 1
+#define WK_MERGE_2           27  // 0x1B char 2
+#define WK_HSCW              28  // 0x0C
+#define WK_SEND_MSG          29  // admin 0x0E: waiting for message slot byte (1-6)
+
+// Buffer XOFF/XON thresholds (char_send_buffer_size = 50 in v2)
+#define WK_XOFF_THRESHOLD  40
+#define WK_XON_THRESHOLD   15
+
+struct WinkeyState {
+  Stream*        port;              // serial port (set by winkey_init)
+  uint8_t        parse_state;       // WK_* constant
+  uint8_t        host_open;         // 1 after admin 0x02
+  uint8_t        wk2_mode;          // 1=WK1 compat, 2=WK2
+  uint8_t        serial_echo;       // 1 = echo chars to host after each char finishes keying
+  uint8_t        sending;           // 0 or 0x04 (OR'd into status byte)
+  uint8_t        xoff;              // 0 or 0x10 (OR'd into status byte)
+  uint8_t        interrupted;       // 1 = paddle grabbed TX during Winkey send
+  uint8_t        paddle_only_sidetone; // WK2 sidetone-on-paddle-only
+  uint8_t        load_count;        // byte index for 0x0F 15-byte load (0-14)
+  uint8_t        ptt_lead_param;    // temp: first byte of 0x04 PTT command
+  uint8_t        ptt_tail_10ms;     // PTT tail from 0x04 (units = 10 ms)
+  uint8_t        was_sending;       // previous tick state (for 0xC4/0xC0 detection)
+  uint8_t        pending_memory;    // 0 = none; 1-6 = memory slot to play (admin 0x0E)
+  unsigned int   saved_wpm;         // WPM before buffered speed change
+  unsigned long  last_activity_ms;  // millis of last received byte (5s timeout)
+  // Deferred echo queue: chars are pushed here on receipt, popped (and sent to host) when
+  // sched->char_keying_finished fires (i.e. after the letterspace KEY_UP timer expires).
+  // This matches v1 behavior where echo is sent from inside the blocking send_char() path,
+  // giving N1MM a true sliding window: echoes arrive slowly (one per ~keying time), keeping
+  // N1MM pumping chars for the full macro rather than draining the window immediately.
+  uint8_t  echo_queue[8];      // circular buffer of pending echoes
+  uint8_t  echo_queue_head;    // next pop index
+  uint8_t  echo_queue_tail;    // next push index
+  uint8_t  echo_queue_count;   // number of pending echoes
+
+  // Grace-period timer: when buffers first go empty, wait this long before sending 0xC0.
+  // Prevents premature done during the brief inter-char gap. 0 = no pending delay.
+  unsigned long  done_delay_until;
+};
+
+void winkey_init(WinkeyState* wk, Stream* port);
+void service_winkey_byte(WinkeyState* wk, uint8_t b,
+                         cw_scheduler_struct* sched,
+                         tx_ptt_struct* ptt_s,
+                         config_struct* cfg);
+void service_winkey_housekeeping(WinkeyState* wk,
+                                 cw_scheduler_struct* sched,
+                                 tx_ptt_struct* ptt_s,
+                                 config_struct* cfg);
+
+#endif // keyer_2_winkey_h

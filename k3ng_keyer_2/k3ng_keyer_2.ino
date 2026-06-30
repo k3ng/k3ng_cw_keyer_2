@@ -20,13 +20,17 @@
 
 */
 
-#define CODE_VERSION "2-20260626.2300"
+#define CODE_VERSION "2-20260626.2500"
 
 #include "keyer_2_serial.h"
 #include "keyer_2.h"
 #include "keyer_2_features_and_options.h"
 #include "keyer_2_pin_settings.h"
 #include "keyer_2_cw.h"
+
+#ifdef FEATURE_WINKEY_EMULATION
+#include "keyer_2_winkey.h"
+#endif
 
 #include <EEPROM.h>
 
@@ -46,6 +50,10 @@ int serial_number = 1;    // incremented by \E and \C macros; decremented by \N
 
 byte config_dirty = 0;
 unsigned long last_config_write = 0;
+
+#ifdef FEATURE_WINKEY_EMULATION
+WinkeyState winkey_state;
+#endif
 
 // Serial port array — built in setup() from KEYER_SERIAL_PORT_* defines
 Stream* primary_serial_port = &Serial;   // set before each CLI port service call
@@ -183,6 +191,11 @@ void setup() {
   if (ptt_tx_1)   digitalWrite(ptt_tx_1,   LOW);
   noTone(sidetone_line);
 
+  // Debug serial port for Winkey tracing (must come before other serial init)
+  #if defined(DEBUG_WINKEY_EMULATION) && defined(DEBUG_WINKEY_PORT)
+  DEBUG_WINKEY_PORT.begin(DEBUG_WINKEY_PORT_BAUD);
+  #endif
+
   // Serial ports — build port array from configured defines and print boot message on each CLI port
   #ifdef KEYER_SERIAL_PORT_0
   KEYER_SERIAL_PORT_0.begin(KEYER_SERIAL_PORT_0_BAUD);
@@ -270,6 +283,15 @@ void setup() {
   }
   #endif
 
+  #ifdef FEATURE_WINKEY_EMULATION
+  for (uint8_t _i = 0; _i < keyer_num_serial_ports; _i++) {
+    if (keyer_serial_ports[_i].mode == SERIAL_MODE_WINKEY) {
+      winkey_init(&winkey_state, keyer_serial_ports[_i].port);
+      break;
+    }
+  }
+  #endif
+
   // Startup sound
   say_hi();
 
@@ -285,6 +307,7 @@ void loop() {
   service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
   check_ptt_tail();
   service_serial();
+  service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
   service_sound(SERVICE, 0, 0);
   #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
   service_beacon_mode();
@@ -296,12 +319,17 @@ void loop() {
   service_paddle_echo();
   #endif
   check_for_dirty_configuration();
+  service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
+  #ifdef FEATURE_WINKEY_EMULATION
+  service_winkey_housekeeping(&winkey_state, &cw_scheduler, &tx_ptt, &configuration);
+  #endif
   #ifdef FEATURE_COMMAND_MODE
   service_command_mode();
   #endif
   #if defined(FEATURE_BUTTONS) || (defined(FEATURE_COMMAND_MODE) && (command_button > 0))
   check_buttons();
   #endif
+  service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
 
 }
 
@@ -716,7 +744,22 @@ void check_paddles() {
   if ((cw_scheduler.current_sending_type == AUTOMATIC_SENDING) &&
       (cw_scheduler.cw_scheduler_state != IDLE) &&
       ((left == LOW) || (right == LOW) || dit_buffer || dah_buffer)) {
+    #ifdef DEBUG_WINKEY_EMULATION
+    DEBUG_WINKEY_PORT.print(F("DBG paddle-abort: left="));
+    DEBUG_WINKEY_PORT.print(left);
+    DEBUG_WINKEY_PORT.print(F(" right="));
+    DEBUG_WINKEY_PORT.print(right);
+    DEBUG_WINKEY_PORT.print(F(" dit_buf="));
+    DEBUG_WINKEY_PORT.print(dit_buffer);
+    DEBUG_WINKEY_PORT.print(F(" dah_buf="));
+    DEBUG_WINKEY_PORT.print(dah_buffer);
+    DEBUG_WINKEY_PORT.print(F(" state="));
+    DEBUG_WINKEY_PORT.println(cw_scheduler.cw_scheduler_state);
+    #endif
     clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
+    #ifdef FEATURE_WINKEY_EMULATION
+    winkey_notify_paddle_interrupt(&winkey_state);
+    #endif
   }
 
   // --- Iambic A / B ---
@@ -1374,6 +1417,22 @@ static void service_cli_port(KeyerSerialPort* sp) {
 
 void service_serial() {
   for (uint8_t _i = 0; _i < keyer_num_serial_ports; _i++) {
+    #ifdef FEATURE_WINKEY_EMULATION
+    if (keyer_serial_ports[_i].mode == SERIAL_MODE_WINKEY) {
+      while (keyer_serial_ports[_i].port->available() > 0) {
+        service_winkey_byte(&winkey_state,
+                            (uint8_t)keyer_serial_ports[_i].port->read(),
+                            &cw_scheduler, &tx_ptt, &configuration);
+      }
+      #if defined(FEATURE_WINKEY_EMULATION) && defined(FEATURE_MEMORIES)
+      if (winkey_state.pending_memory > 0) {
+        play_memory(winkey_state.pending_memory - 1);  // pending_memory is 1-based
+        winkey_state.pending_memory = 0;
+      }
+      #endif
+      continue;
+    }
+    #endif
     if (keyer_serial_ports[_i].mode != SERIAL_MODE_CLI) continue;
     primary_serial_port = keyer_serial_ports[_i].port;
     service_cli_port(&keyer_serial_ports[_i]);
@@ -1384,6 +1443,22 @@ void service_serial() {
 
 void service_serial() {
   for (uint8_t _i = 0; _i < keyer_num_serial_ports; _i++) {
+    #ifdef FEATURE_WINKEY_EMULATION
+    if (keyer_serial_ports[_i].mode == SERIAL_MODE_WINKEY) {
+      while (keyer_serial_ports[_i].port->available() > 0) {
+        service_winkey_byte(&winkey_state,
+                            (uint8_t)keyer_serial_ports[_i].port->read(),
+                            &cw_scheduler, &tx_ptt, &configuration);
+      }
+      #if defined(FEATURE_WINKEY_EMULATION) && defined(FEATURE_MEMORIES)
+      if (winkey_state.pending_memory > 0) {
+        play_memory(winkey_state.pending_memory - 1);  // pending_memory is 1-based
+        winkey_state.pending_memory = 0;
+      }
+      #endif
+      continue;
+    }
+    #endif
     if (keyer_serial_ports[_i].mode != SERIAL_MODE_CLI) continue;
     while (keyer_serial_ports[_i].port->available() > 0) {
       add_to_cw_char_send_buffer(&cw_scheduler, toupper((char)keyer_serial_ports[_i].port->read()));

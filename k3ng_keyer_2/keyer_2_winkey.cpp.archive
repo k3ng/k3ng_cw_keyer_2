@@ -1,0 +1,651 @@
+#include "keyer_2_winkey.h"
+#include "keyer_2_features_and_options.h"
+#include "keyer_2_cw.h"
+#include <EEPROM.h>
+
+#ifdef FEATURE_WINKEY_EMULATION
+
+// ---------------------------------------------------------------------------
+// Debug macros — compiled away when DEBUG_WINKEY_EMULATION is not defined
+// ---------------------------------------------------------------------------
+#ifdef DEBUG_WINKEY_EMULATION
+  #ifndef DEBUG_WINKEY_PORT
+    #define DEBUG_WINKEY_PORT  Serial3
+  #endif
+  #define WK_DBG(msg)       DEBUG_WINKEY_PORT.print(F(msg))
+  #define WK_DBGLN(msg)     DEBUG_WINKEY_PORT.println(F(msg))
+  #define WK_DBG_HEX(v)     DEBUG_WINKEY_PORT.print((unsigned long)(v), HEX)
+  #define WK_DBG_DEC(v)     DEBUG_WINKEY_PORT.print((long)(v), DEC)
+  #define WK_DBG_CHAR(v)    DEBUG_WINKEY_PORT.print((char)(v))
+  #define WK_DBG_NL()       DEBUG_WINKEY_PORT.println()
+#else
+  #define WK_DBG(msg)
+  #define WK_DBGLN(msg)
+  #define WK_DBG_HEX(v)
+  #define WK_DBG_DEC(v)
+  #define WK_DBG_CHAR(v)
+  #define WK_DBG_NL()
+#endif
+
+// ---------------------------------------------------------------------------
+// Pot WPM globals (defined in .ino)
+// ---------------------------------------------------------------------------
+#ifdef FEATURE_POTENTIOMETER
+extern byte pot_wpm_low_value;
+extern byte pot_wpm_high_value;
+#else
+static const byte pot_wpm_low_value  = 5;
+static const byte pot_wpm_high_value = 40;
+#endif
+
+// ---------------------------------------------------------------------------
+// Sidetone frequency table: index 1-10 → Hz
+// ---------------------------------------------------------------------------
+static const int wk_sidetone_hz[11] = { 0, 4000, 2000, 1333, 1000, 800, 667, 571, 500, 444, 400 };
+
+static uint8_t hz_to_sidetone_index(unsigned int hz) {
+  uint8_t best = 5;
+  int best_diff = 9999;
+  for (uint8_t i = 1; i <= 10; i++) {
+    int diff = abs((int)hz - wk_sidetone_hz[i]);
+    if (diff < best_diff) { best_diff = diff; best = i; }
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------------------
+// Low-level port write (and debug shim)
+// ---------------------------------------------------------------------------
+static void wk_write(WinkeyState* wk, uint8_t b) {
+  wk->port->write(b);
+  WK_DBG("WK>> 0x"); WK_DBG_HEX(b); WK_DBG_NL();
+}
+
+// ---------------------------------------------------------------------------
+// Status byte helpers
+// ---------------------------------------------------------------------------
+static void wk_send_status(WinkeyState* wk) {
+  uint8_t s = 0xC0 | wk->sending | wk->xoff;
+  WK_DBG("WK status 0x"); WK_DBG_HEX(s);
+  WK_DBG(" (sending="); WK_DBG_HEX(wk->sending);
+  WK_DBG(" xoff="); WK_DBG_HEX(wk->xoff); WK_DBGLN(")");
+  wk->port->write(s);
+}
+
+static void wk_start_sending(WinkeyState* wk) {
+  WK_DBGLN("WK start sending -> 0xC4");
+  wk->sending = 0x04;
+  wk_send_status(wk);
+}
+
+static void wk_done_sending(WinkeyState* wk) {
+  WK_DBGLN("WK done sending -> 0xC0");
+  wk->sending = 0;
+  wk_send_status(wk);
+}
+
+// ---------------------------------------------------------------------------
+// Admin get-values: send 15-byte settings block
+// ---------------------------------------------------------------------------
+static void wk_send_values(WinkeyState* wk, config_struct* cfg, tx_ptt_struct* ptt_s) {
+  WK_DBGLN("WK send_values (15 bytes)");
+  uint8_t mode_byte = 0;
+  if (cfg->keyer_mode == IAMBIC_A)        mode_byte |= 0x01;
+  if (cfg->paddle_mode == PADDLE_REVERSE) mode_byte |= 0x02;
+  if (wk->serial_echo)                    mode_byte |= 0x04;
+  wk_write(wk, mode_byte);
+  wk_write(wk, (uint8_t)cfg->wpm);
+  wk_write(wk, hz_to_sidetone_index(cfg->sidetone_frequency));
+  wk_write(wk, 50);   // weight (50 = normal)
+  wk_write(wk, (uint8_t)(ptt_s->ptt_lead_time / 10));
+  wk_write(wk, wk->ptt_tail_10ms);
+  wk_write(wk, (uint8_t)pot_wpm_low_value);
+  uint8_t wpm_range = (pot_wpm_high_value > pot_wpm_low_value) ?
+                      (uint8_t)(pot_wpm_high_value - pot_wpm_low_value) : 35;
+  wk_write(wk, wpm_range);
+  wk_write(wk, 0);    // first extension
+  wk_write(wk, 0);    // keying compensation
+  wk_write(wk, 0);    // Farnsworth WPM (0 = disabled)
+  wk_write(wk, 255);  // pot full scale
+  wk_write(wk, 50);   // dah/dit ratio (50 = standard 3:1)
+  wk_write(wk, 0);    // pin config
+  wk_write(wk, 0);    // WK2 extra
+}
+
+// ---------------------------------------------------------------------------
+// winkey_init()
+// ---------------------------------------------------------------------------
+void winkey_init(WinkeyState* wk, Stream* port) {
+  memset(wk, 0, sizeof(WinkeyState));
+  wk->port     = port;
+  wk->wk2_mode = 2;
+  WK_DBGLN("WK init complete");
+}
+
+// ---------------------------------------------------------------------------
+// service_winkey_housekeeping() — called every loop()
+// ---------------------------------------------------------------------------
+void service_winkey_housekeeping(WinkeyState* wk,
+                                 cw_scheduler_struct* sched,
+                                 tx_ptt_struct* ptt_s,
+                                 config_struct* cfg) {
+  if (!wk->host_open) return;
+
+  // All three conditions must be true: char buffer drained, element buffer drained,
+  // AND the key state machine has gone fully idle. Without the state check, 0xC0
+  // fires while the last character is still being keyed (elements scheduled but
+  // key_scheduler still in KEY_DOWN/KEY_UP). N1MM interprets a premature 0xC0 as
+  // "macro complete" and restarts the macro from the beginning.
+  uint8_t is_empty = (sched->char_send_buffer_bytes == 0 &&
+                      sched->element_send_buffer_bytes == 0 &&
+                      sched->cw_scheduler_state == IDLE);
+
+  // Periodic scheduler state dump while buffer is non-empty (debug only)
+#ifdef DEBUG_WINKEY_EMULATION
+  {
+    static unsigned long _last_dump = 0;
+    if (!is_empty && (millis() - _last_dump > 500UL)) {
+      _last_dump = millis();
+      WK_DBG("WK sched: char="); WK_DBG_DEC(sched->char_send_buffer_bytes);
+      WK_DBG(" elem="); WK_DBG_DEC(sched->element_send_buffer_bytes);
+      WK_DBG(" pause="); WK_DBG_DEC(sched->pause_sending_buffer);
+      WK_DBG(" state="); WK_DBG_DEC(sched->cw_scheduler_state);
+      WK_DBG(" tx_en="); WK_DBG_DEC(ptt_s->cw_tx_enabled);
+      WK_DBG_NL();
+    }
+  }
+#endif
+
+  // char_keying_started: just clear (kept for future use; echo is handled via char_keying_finished).
+  if (sched->char_keying_started) {
+    sched->char_keying_started = 0;
+  }
+
+  // char_keying_finished: letterspace/wordspace KEY_UP just expired — char fully keyed.
+  // Pop one entry from the echo queue and send it. This mirrors v1's behavior of echoing
+  // from inside send_char(), creating a slow sliding window that keeps N1MM pumping chars.
+  if (sched->char_keying_finished) {
+    sched->char_keying_finished = 0;
+    if (wk->serial_echo && wk->echo_queue_count > 0) {
+      uint8_t echo_b = wk->echo_queue[wk->echo_queue_head];
+      wk->echo_queue_head  = (wk->echo_queue_head + 1) & 7;
+      wk->echo_queue_count--;
+      WK_DBG("WK echo send: 0x"); WK_DBG_HEX(echo_b);
+      WK_DBG(" (q="); WK_DBG_DEC(wk->echo_queue_count); WK_DBGLN(")");
+      wk_write(wk, echo_b);
+    }
+  }
+
+  // Detect sending → idle transition, with grace period.
+  // Only consider done when we have actually sent 0xC4 (start_pending=0 means 0xC4 was
+  // sent, or there is nothing pending at all). While start_pending is set the buffer has
+  // chars not yet keyed — suppressing done_delay here avoids a spurious 0xC0 race.
+  // Also require no more incoming bytes from host — v1 checks available()==0 here so
+  // that 0xC0 isn't sent while N1MM is still pumping chars into the buffer.
+  if (wk->was_sending && is_empty && wk->done_delay_until == 0 && wk->port->available() == 0) {
+    wk->done_delay_until = millis() + 75UL;
+    WK_DBG("WK hk: buf empty, grace 75ms (char="); WK_DBG_DEC(sched->char_send_buffer_bytes);
+    WK_DBG(" elem="); WK_DBG_DEC(sched->element_send_buffer_bytes); WK_DBGLN(")");
+  }
+  if (!is_empty && wk->done_delay_until != 0) {
+    WK_DBGLN("WK hk: new chars, cancelling done_delay");
+    wk->done_delay_until = 0;  // more chars arrived before grace period expired
+  }
+  if (wk->done_delay_until != 0 && millis() >= wk->done_delay_until) {
+    // Still empty after grace period — this is a genuine end-of-macro.
+    WK_DBGLN("WK hk: done_delay expired -> 0xC0");
+    wk_done_sending(wk);
+    wk->done_delay_until = 0;
+  }
+  wk->was_sending = !is_empty;
+
+  // Paddle interrupt cleared
+  if (wk->interrupted && !ptt_s->ptt_line_asserted) {
+    WK_DBGLN("WK hk: interrupt cleared -> 0xC6");
+    wk->port->write(0xC6);
+    wk->interrupted = 0;
+    wk->sending     = 0;
+  }
+
+  // XOFF: buffer filling up
+  if (!wk->xoff && sched->char_send_buffer_bytes >= WK_XOFF_THRESHOLD) {
+    WK_DBG("WK hk: XOFF (buf="); WK_DBG_DEC(sched->char_send_buffer_bytes); WK_DBGLN(")");
+    wk->xoff = 0x10;
+    wk_send_status(wk);
+  } else if (wk->xoff && sched->char_send_buffer_bytes <= WK_XON_THRESHOLD) {
+    WK_DBG("WK hk: XON (buf="); WK_DBG_DEC(sched->char_send_buffer_bytes); WK_DBGLN(")");
+    wk->xoff = 0;
+    wk_send_status(wk);
+  }
+
+  // 5-second parse timeout
+  if (wk->parse_state != WK_IDLE &&
+      (millis() - wk->last_activity_ms) > 5000UL) {
+    WK_DBG("WK hk: timeout, was state="); WK_DBG_DEC(wk->parse_state); WK_DBGLN("");
+    wk->parse_state = WK_IDLE;
+    wk_send_status(wk);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// service_winkey_byte() — called once per received byte
+// ---------------------------------------------------------------------------
+void service_winkey_byte(WinkeyState* wk, uint8_t b,
+                         cw_scheduler_struct* sched,
+                         tx_ptt_struct* ptt_s,
+                         config_struct* cfg) {
+
+  wk->last_activity_ms = millis();
+
+  // Log every incoming byte with current state
+  WK_DBG("WK<< 0x"); WK_DBG_HEX(b);
+  if (b >= 0x20 && b < 0x7F) { WK_DBG(" '"); WK_DBG_CHAR(b); WK_DBG("'"); }
+  WK_DBG(" state="); WK_DBG_DEC(wk->parse_state);
+  WK_DBG_NL();
+
+  switch (wk->parse_state) {
+
+    // -----------------------------------------------------------------------
+    case WK_IDLE:
+      if (b == 0x00) { WK_DBGLN("WK cmd: ADMIN");           wk->parse_state = WK_ADMIN;          break; }
+      if (b == 0x01) { WK_DBGLN("WK cmd: SIDETONE(skip1)");  wk->parse_state = WK_UNSUPPORTED_1;  break; }
+      if (b == 0x02) { WK_DBGLN("WK cmd: SPEED");           wk->parse_state = WK_SPEED;          break; }
+      if (b == 0x03) { WK_DBGLN("WK cmd: WEIGHTING");       wk->parse_state = WK_WEIGHTING;      break; }
+      if (b == 0x04) { WK_DBGLN("WK cmd: PTT_LEAD");        wk->parse_state = WK_PTT_LEAD;       break; }
+      if (b == 0x05) { WK_DBGLN("WK cmd: POT");             wk->parse_state = WK_POT1;           break; }
+      if (b == 0x06) { WK_DBGLN("WK cmd: PAUSE");           wk->parse_state = WK_PAUSE;          break; }
+      if (b == 0x07) {
+        uint8_t sp = (uint8_t)((cfg->wpm - pot_wpm_low_value) | 0x80);
+        WK_DBG("WK cmd: POT_SPEED report 0x"); WK_DBG_HEX(sp); WK_DBG_NL();
+        wk_write(wk, sp);
+        break;
+      }
+      if (b == 0x08) {
+        WK_DBGLN("WK cmd: BACKSPACE");
+        if (sched->char_send_buffer_bytes > 0) sched->char_send_buffer_bytes--;
+        break;
+      }
+      if (b == 0x09) { WK_DBGLN("WK cmd: PINCONFIG");       wk->parse_state = WK_PINCONFIG;      break; }
+      if (b == 0x0A) {
+        WK_DBGLN("WK cmd: CLEAR BUFFER");
+        clear_buffers_and_stop_sending(sched, ptt_s, cfg);
+        sched->pause_sending_buffer = 0;
+        wk->sending          = 0;
+        wk->done_delay_until = 0;
+        wk->echo_queue_head  = 0;
+        wk->echo_queue_tail  = 0;
+        wk->echo_queue_count = 0;
+        wk_send_status(wk);
+        break;
+      }
+      if (b == 0x0B) { WK_DBGLN("WK cmd: KEY");             wk->parse_state = WK_KEY;            break; }
+      if (b == 0x0C) { WK_DBGLN("WK cmd: HSCW");            wk->parse_state = WK_HSCW;           break; }
+      if (b == 0x0D) { WK_DBGLN("WK cmd: FARNSWORTH");      wk->parse_state = WK_FARNSWORTH;     break; }
+      if (b == 0x0E) { WK_DBGLN("WK cmd: SETMODE");         wk->parse_state = WK_SETMODE;        break; }
+      if (b == 0x0F) {
+        WK_DBGLN("WK cmd: LOAD_SETTINGS (15 bytes)");
+        wk->parse_state = WK_LOAD_SETTINGS;
+        wk->load_count  = 0;
+        break;
+      }
+      if (b == 0x10) { WK_DBGLN("WK cmd: FIRST_EXT");       wk->parse_state = WK_FIRST_EXTENSION; break; }
+      if (b == 0x11) { WK_DBGLN("WK cmd: KEYING_COMP");     wk->parse_state = WK_KEYING_COMP;    break; }
+      if (b == 0x12) { WK_DBGLN("WK cmd: UNSUPPORTED_12");  wk->parse_state = WK_UNSUPPORTED_1;  break; }
+      if (b == 0x13) { WK_DBGLN("WK cmd: NOP");                                                   break; }
+      if (b == 0x14) { WK_DBGLN("WK cmd: SW_PADDLE");       wk->parse_state = WK_SOFTWARE_PADDLE; break; }
+      if (b == 0x15) { WK_DBGLN("WK cmd: STATUS");          wk_send_status(wk);                   break; }
+      if (b == 0x16) { WK_DBGLN("WK cmd: POINTER");         wk->parse_state = WK_POINTER;        break; }
+      if (b == 0x17) { WK_DBGLN("WK cmd: DAH_DIT_RATIO");   wk->parse_state = WK_DAH_DIT_RATIO;  break; }
+      if (b == 0x18) { WK_DBGLN("WK cmd: BUF_PTT(skip1)");  wk->parse_state = WK_UNSUPPORTED_1;  break; }
+      if (b == 0x19) { WK_DBGLN("WK cmd: TIMED_KEY(skip1)"); wk->parse_state = WK_UNSUPPORTED_1; break; }
+      if (b == 0x1A) { WK_DBGLN("WK cmd: TIMED_WAIT(skip1)"); wk->parse_state = WK_UNSUPPORTED_1; break; }
+      if (b == 0x1B) { WK_DBGLN("WK cmd: MERGE/PROSIGN");   wk->parse_state = WK_MERGE_1;        break; }
+      if (b == 0x1C) {
+        WK_DBGLN("WK cmd: BUF_SPEED");
+        // Real WK2 echoes buffered commands when executed; echo cmd byte now so N1MM's
+        // byte-count window tracking closes this slot before we send the param byte.
+        if (wk->serial_echo) { wk_write(wk, 0x1C); }
+        wk->parse_state = WK_BUFFERED_SPEED;
+        break;
+      }
+      if (b == 0x1D) {
+        WK_DBGLN("WK cmd: BUF_HSCW");
+        if (wk->serial_echo) { wk_write(wk, 0x1D); }
+        wk->parse_state = WK_BUFFERED_HSCW;
+        break;
+      }
+      if (b == 0x1E) {
+        WK_DBGLN("WK cmd: CANCEL_BUF_SPEED");
+        if (wk->saved_wpm > 0) { cfg->wpm = wk->saved_wpm; wk->saved_wpm = 0; }
+        if (wk->serial_echo) { wk_write(wk, 0x1E); }  // echo buffered command
+        break;
+      }
+      if (b == 0x1F) {
+        WK_DBGLN("WK cmd: BUF_NOP");
+        if (wk->serial_echo) { wk_write(wk, 0x1F); }  // echo buffered command
+        break;
+      }
+
+      // CW character
+      if ((b >= 0x20 && b <= 0x7E)) {
+        if (b >= 'a' && b <= 'z') b = b - 32;
+        uint8_t was_empty = (sched->char_send_buffer_bytes == 0 &&
+                             sched->element_send_buffer_bytes == 0);
+        WK_DBG("WK char '"); WK_DBG_CHAR(b); WK_DBG("' buf_before=");
+        WK_DBG_DEC(sched->char_send_buffer_bytes); WK_DBG_NL();
+        add_to_cw_char_send_buffer(sched, (char)b);
+        WK_DBG("WK char queued, buf_after="); WK_DBG_DEC(sched->char_send_buffer_bytes); WK_DBG_NL();
+        // Send 0xC4 BEFORE the echo of the first char. N1MM tracks
+        // buffer_in_use = chars_sent - echoes_received. Sending 0xC4 first means N1MM
+        // receives it while buffer_in_use > 0 (echo hasn't arrived yet), so it stays in
+        // "active send" mode and keeps pumping chars. If echo arrived first, buffer_in_use
+        // would drop to 0 before 0xC4, and N1MM would treat 0xC4 as a stale send → CLEAR.
+        if (was_empty && !wk->sending) {
+          wk_start_sending(wk);
+        }
+        if (wk->serial_echo) {
+          // Deferred echo: queue now, send after the char finishes keying (matching v1
+          // which echoes from inside blocking send_char()). This keeps N1MM's sliding
+          // window open: echoes arrive one per ~keying period, not all at once.
+          if (wk->echo_queue_count < 8) {
+            wk->echo_queue[wk->echo_queue_tail] = b;
+            wk->echo_queue_tail = (wk->echo_queue_tail + 1) & 7;
+            wk->echo_queue_count++;
+            WK_DBG("WK echo queued: 0x"); WK_DBG_HEX(b);
+            WK_DBG(" (q="); WK_DBG_DEC(wk->echo_queue_count); WK_DBGLN(")");
+          } else {
+            WK_DBGLN("WK echo queue full, dropping echo");
+          }
+        }
+      } else {
+        WK_DBG("WK unknown byte 0x"); WK_DBG_HEX(b); WK_DBGLN(" (ignored)");
+      }
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_ADMIN:
+      WK_DBG("WK admin sub=0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      if (b == 0x01) {
+        WK_DBGLN("WK admin: RESET");
+        #if defined(__AVR__)
+          asm volatile ("jmp 0");
+        #else
+          winkey_init(wk, wk->port);
+        #endif
+      } else if (b == 0x02) {
+        WK_DBG("WK admin: HOST OPEN -> version "); WK_DBG_DEC(WINKEY_VERSION); WK_DBG_NL();
+        wk->host_open = 1;
+        sched->pause_sending_buffer = 0;  // clear any stale pause from previous session
+        wk_write(wk, WINKEY_VERSION);
+      } else if (b == 0x03) {
+        WK_DBGLN("WK admin: HOST CLOSE");
+        wk->host_open = 0;
+      } else if (b == 0x04) {
+        WK_DBGLN("WK admin: ECHO (awaiting byte)");
+        wk->parse_state = WK_ADMIN_ECHO;
+        return;
+      } else if (b == 0x07) {
+        WK_DBGLN("WK admin: GET VALUES");
+        wk_send_values(wk, cfg, ptt_s);
+      } else if (b == 0x0A) {
+        WK_DBGLN("WK admin: SET WK1 MODE");
+        wk->wk2_mode = 1;
+      } else if (b == 0x0B) {
+        WK_DBGLN("WK admin: SET WK2 MODE");
+        wk->wk2_mode = 2;
+      } else if (b == 0x0C) {
+        WK_DBGLN("WK admin: EEPROM DOWNLOAD (256 bytes)");
+        wk_write(wk, 0xA5);
+        wk_send_values(wk, cfg, ptt_s);
+        for (int x = 0; x < (256 - 16); x++) wk->port->write((uint8_t)0x00);
+      } else if (b == 0x0E) {
+        WK_DBGLN("WK admin: SEND MSG");
+        wk->parse_state = WK_SEND_MSG;
+        return;
+      } else {
+        WK_DBG("WK admin: unknown sub 0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      }
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_ADMIN_ECHO:
+      WK_DBG("WK admin echo: 0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      wk_write(wk, b);
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_SPEED:
+      WK_DBG("WK speed="); WK_DBG_DEC(b); WK_DBGLN(" wpm");
+      if (b == 0) {
+        // Re-enable pot control
+      } else if (b >= 5 && b <= 99) {
+        cfg->wpm = b;
+      } else {
+        WK_DBG("WK speed out of range: "); WK_DBG_DEC(b); WK_DBG_NL();
+      }
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_WEIGHTING:
+      WK_DBG("WK weighting="); WK_DBG_DEC(b); WK_DBGLN(" (stored, not applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_PTT_LEAD:
+      WK_DBG("WK PTT lead="); WK_DBG_DEC((unsigned int)b * 10); WK_DBGLN(" ms");
+      ptt_s->ptt_lead_time = (unsigned int)b * 10;
+      cfg->ptt_lead_time   = ptt_s->ptt_lead_time;
+      wk->ptt_lead_param   = b;
+      wk->parse_state = WK_PTT_TAIL;
+      break;
+
+    case WK_PTT_TAIL:
+      WK_DBG("WK PTT tail="); WK_DBG_DEC((unsigned int)b * 10); WK_DBGLN(" ms");
+      wk->ptt_tail_10ms    = b;
+      ptt_s->ptt_tail_time = (unsigned int)b * 10;
+      cfg->ptt_tail_time   = ptt_s->ptt_tail_time;
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_POT1:
+      WK_DBG("WK pot min_wpm="); WK_DBG_DEC(b); WK_DBG_NL();
+      wk->parse_state = WK_POT2;
+      break;
+
+    case WK_POT2:
+      WK_DBG("WK pot range="); WK_DBG_DEC(b); WK_DBG_NL();
+      wk->parse_state = WK_POT3;
+      break;
+
+    case WK_POT3:
+      WK_DBG("WK pot full_scale="); WK_DBG_DEC(b); WK_DBG_NL();
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_PAUSE:
+      sched->pause_sending_buffer = (b != 0) ? 1 : 0;
+      WK_DBG("WK PAUSE="); WK_DBG_DEC(b);
+      WK_DBG(" pause_sending_buffer="); WK_DBG_DEC(sched->pause_sending_buffer); WK_DBG_NL();
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_PINCONFIG:
+      WK_DBG("WK pinconfig=0x"); WK_DBG_HEX(b); WK_DBGLN(" (stored, not fully applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_KEY:
+      WK_DBG("WK key="); WK_DBG_DEC(b); WK_DBG_NL();
+      cw_key(ptt_s, (b != 0) ? RIG_TRANSMIT : RIG_RECEIVE, cfg);
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_HSCW:
+      WK_DBG("WK HSCW="); WK_DBG_DEC(b); WK_DBG(" -> wpm=");
+      if (b > 0) { cfg->wpm = (unsigned int)b * 100 / 5; WK_DBG_DEC(cfg->wpm); }
+      else       { WK_DBG("pot"); }
+      WK_DBG_NL();
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_FARNSWORTH:
+      WK_DBG("WK Farnsworth="); WK_DBG_DEC(b); WK_DBGLN(" (not implemented)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_SETMODE:
+      WK_DBG("WK setmode=0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      if (b & 0x01) cfg->keyer_mode  = IAMBIC_A;   else cfg->keyer_mode  = IAMBIC_B;
+      if (b & 0x02) cfg->paddle_mode = PADDLE_REVERSE; else cfg->paddle_mode = PADDLE_NORMAL;
+      wk->serial_echo = (b & 0x04) ? 1 : 0;
+      if (b & 0x10) { sched->length_wordspace = 6; cfg->length_wordspace = 6; }
+      WK_DBG("WK setmode: keyer="); WK_DBG_DEC(cfg->keyer_mode);
+      WK_DBG(" paddle="); WK_DBG_DEC(cfg->paddle_mode);
+      WK_DBG(" echo="); WK_DBG_DEC(wk->serial_echo); WK_DBG_NL();
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_LOAD_SETTINGS:
+      WK_DBG("WK load_settings["); WK_DBG_DEC(wk->load_count);
+      WK_DBG("]=0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      switch (wk->load_count) {
+        case 0:
+          if (b & 0x01) cfg->keyer_mode  = IAMBIC_A;      else cfg->keyer_mode  = IAMBIC_B;
+          if (b & 0x02) cfg->paddle_mode = PADDLE_REVERSE; else cfg->paddle_mode = PADDLE_NORMAL;
+          wk->serial_echo = (b & 0x04) ? 1 : 0;
+          break;
+        case 1:  if (b >= 5 && b <= 99) cfg->wpm = b; break;
+        case 2:  if (b >= 1 && b <= 10) cfg->sidetone_frequency = wk_sidetone_hz[b]; break;
+        case 3:  break;  // weight (not applied)
+        case 4:  ptt_s->ptt_lead_time = (unsigned int)b * 10; cfg->ptt_lead_time = ptt_s->ptt_lead_time; break;
+        case 5:  wk->ptt_tail_10ms = b; ptt_s->ptt_tail_time = (unsigned int)b * 10; cfg->ptt_tail_time = ptt_s->ptt_tail_time; break;
+        default: break;
+      }
+      wk->load_count++;
+      if (wk->load_count >= 15) {
+        WK_DBGLN("WK load_settings complete");
+        wk->parse_state = WK_IDLE;
+        wk_send_status(wk);
+      }
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_FIRST_EXTENSION:
+      WK_DBG("WK first_ext="); WK_DBG_DEC(b); WK_DBGLN(" (not applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    case WK_KEYING_COMP:
+      WK_DBG("WK keying_comp="); WK_DBG_DEC(b); WK_DBGLN(" (not applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_UNSUPPORTED_1:
+      WK_DBG("WK unsupported param=0x"); WK_DBG_HEX(b); WK_DBGLN(" (discarded)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    // Admin 0x0E: Send Standalone Message — play keyer memory slot (1-6)
+    // The .ino service_serial() checks pending_memory after each call and
+    // calls play_memory() since that function lives in the .ino scope.
+    case WK_SEND_MSG:
+      WK_DBG("WK send_msg slot="); WK_DBG_DEC(b); WK_DBG_NL();
+      if (b >= 1 && b <= 6) {
+        wk->pending_memory = b;   // 1-based; .ino converts to 0-based
+      } else {
+        WK_DBG("WK send_msg: slot "); WK_DBG_DEC(b); WK_DBGLN(" out of range (1-6)");
+      }
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_SOFTWARE_PADDLE:
+      WK_DBG("WK sw_paddle=0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      if (b & 0x02) add_to_cw_char_send_buffer(sched, '.');
+      if (b & 0x01) add_to_cw_char_send_buffer(sched, '-');
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_POINTER:
+      WK_DBG("WK pointer sub=0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      if (b == 0x01) { wk->parse_state = WK_POINTER_01; return; }
+      if (b == 0x02) { wk->parse_state = WK_POINTER_02; return; }  // must consume next byte
+      if (b == 0x03) { wk->parse_state = WK_POINTER_03; return; }
+      wk->parse_state = WK_IDLE;
+      break;
+
+    case WK_POINTER_01:
+      WK_DBG("WK pointer overwrite_pos="); WK_DBG_DEC(b); WK_DBGLN(" (not applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    case WK_POINTER_02:
+      WK_DBG("WK pointer append_pos="); WK_DBG_DEC(b); WK_DBGLN(" (not applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    case WK_POINTER_03:
+      WK_DBG("WK pointer null_fill_pos="); WK_DBG_DEC(b); WK_DBGLN(" (not applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_DAH_DIT_RATIO:
+      WK_DBG("WK dah_dit_ratio="); WK_DBG_DEC(b); WK_DBGLN(" (not applied)");
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_BUFFERED_SPEED:
+      WK_DBG("WK buf_speed="); WK_DBG_DEC(b); WK_DBGLN(" wpm");
+      if (wk->saved_wpm == 0) wk->saved_wpm = cfg->wpm;
+      if (b >= 5 && b <= 99) cfg->wpm = b;
+      if (wk->serial_echo) { wk_write(wk, b); }  // echo param byte (cmd byte already sent)
+      wk->parse_state = WK_IDLE;
+      break;
+
+    case WK_BUFFERED_HSCW:
+      WK_DBG("WK buf_hscw="); WK_DBG_DEC(b); WK_DBG_NL();
+      if (b > 1) cfg->wpm = (unsigned int)b * 100 / 5;
+      if (wk->serial_echo) { wk_write(wk, b); }  // echo param byte (cmd byte already sent)
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    case WK_MERGE_1:
+      WK_DBG("WK merge char1='"); WK_DBG_CHAR(b); WK_DBGLN("'");
+      add_to_cw_char_send_buffer(sched, (char)toupper((char)b));
+      wk->parse_state = WK_MERGE_2;
+      break;
+
+    case WK_MERGE_2:
+      WK_DBG("WK merge char2='"); WK_DBG_CHAR(b); WK_DBGLN("'");
+      add_to_cw_char_send_buffer(sched, (char)toupper((char)b));
+      wk->parse_state = WK_IDLE;
+      break;
+
+    // -----------------------------------------------------------------------
+    default:
+      WK_DBG("WK default: unknown state="); WK_DBG_DEC(wk->parse_state);
+      WK_DBG(" byte=0x"); WK_DBG_HEX(b); WK_DBG_NL();
+      wk->parse_state = WK_IDLE;
+      break;
+  }
+}
+
+#endif // FEATURE_WINKEY_EMULATION

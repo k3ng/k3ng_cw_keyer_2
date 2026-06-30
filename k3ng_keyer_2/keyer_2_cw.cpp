@@ -343,6 +343,13 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
     case KEY_UP:
       if (millis() >= cw_scheduler_ptr->next_key_scheduler_transition_time) {
         cw_scheduler_ptr->cw_scheduler_state = IDLE;
+        // The letterspace/wordspace element is always the last element of a char.
+        // When its KEY_UP timer expires, the char is fully keyed — signal the echo layer.
+        if (cw_scheduler_ptr->currently_sending_element == KEY_UP_LETTERSPACE_MINUS_1 ||
+            cw_scheduler_ptr->currently_sending_element == KEY_UP_WORDSPACE_MINUS_4   ||
+            cw_scheduler_ptr->currently_sending_element == KEY_UP_WORDSPACE) {
+          cw_scheduler_ptr->char_keying_finished = 1;
+        }
       }
       break;
 
@@ -419,6 +426,13 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
 
     if (next_char < CW_CHAR_BUFFER_START_OF_SPECIAL_CHARS) {
       send_cw_char(cw_scheduler_ptr, (char)next_char, NORMAL);
+      // Signal that a char just started keying. V1 sends Winkey echo here
+      // (synchronously, right after send_char). We set this flag so the Winkey
+      // housekeeping layer can fire the echo at the same logical moment.
+      if (next_char > 30 && next_char != 0x7C) {
+        cw_scheduler_ptr->char_keying_started = 1;
+        cw_scheduler_ptr->char_keying_char    = next_char;
+      }
     } else {
       // Special control codes
       if (next_char == CW_CHAR_BUFFER_TX_INHIBIT) {

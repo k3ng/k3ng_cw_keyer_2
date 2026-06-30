@@ -100,18 +100,20 @@
 // ---------------------------------------------------------------------------
 // Serial port configuration
 // Up to KEYER_MAX_SERIAL_PORTS (4) ports may be configured.
-// MODE: SERIAL_MODE_CLI, SERIAL_MODE_WINKEY (future), SERIAL_MODE_DISABLED
+// MODE: SERIAL_MODE_CLI, SERIAL_MODE_WINKEY, SERIAL_MODE_DISABLED
 // Each port needs a corresponding PORT, BAUD, and MODE define.
 // Port 0 is the primary port (boot messages printed here).
 // ---------------------------------------------------------------------------
 #define KEYER_SERIAL_PORT_0        Serial
-#define KEYER_SERIAL_PORT_0_BAUD   115200
-#define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_CLI
+//#define KEYER_SERIAL_PORT_0_BAUD   115200
+//#define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_CLI
+#define KEYER_SERIAL_PORT_0_BAUD   1200
+#define KEYER_SERIAL_PORT_0_MODE   SERIAL_MODE_WINKEY
 
 // Uncomment to enable additional ports (Serial1/Serial2/Serial3 on Mega, etc.)
-// #define KEYER_SERIAL_PORT_1        Serial1
-// #define KEYER_SERIAL_PORT_1_BAUD   115200
-// #define KEYER_SERIAL_PORT_1_MODE   SERIAL_MODE_CLI
+//#define KEYER_SERIAL_PORT_1        Serial1
+//#define KEYER_SERIAL_PORT_1_BAUD   1200
+//#define KEYER_SERIAL_PORT_1_MODE   SERIAL_MODE_WINKEY
 
 // #define KEYER_SERIAL_PORT_2        Serial2
 // #define KEYER_SERIAL_PORT_2_BAUD   115200

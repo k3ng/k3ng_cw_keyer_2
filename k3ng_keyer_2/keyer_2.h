@@ -181,6 +181,15 @@ struct cw_scheduler_struct {
   uint8_t  element_send_buffer_array[element_send_buffer_size];
   uint8_t  char_send_buffer_array[char_send_buffer_size];
 
+  // Set by service_cw_scheduler Step 3 when a char moves from char buffer to element buffer.
+  // Cleared by whoever reads it (e.g. Winkey echo dispatch).
+  uint8_t  char_keying_started;   // 1 = a new char just started keying this tick
+  uint8_t  char_keying_char;      // which char started keying (valid when char_keying_started=1)
+
+  // Set by service_cw_scheduler Step 1 when the letterspace/wordspace KEY_UP timer expires
+  // (i.e. the char's last element just finished). Cleared by Winkey housekeeping after echo.
+  uint8_t  char_keying_finished;  // 1 = a char's full keying (incl. letterspace) just completed
+
   #ifdef FEATURE_MEMORY_MACROS
   unsigned long macro_delay_until;  // millis() deadline for \D / \T delays; 0 = none
   #endif
