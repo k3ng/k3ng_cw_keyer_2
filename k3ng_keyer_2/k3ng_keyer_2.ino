@@ -197,6 +197,9 @@ void process_cli_command(char cmd);
 void serial_wpm_set();
 void serial_set_sidetone_freq();
 void serial_change_wordspace();
+#ifdef FEATURE_FARNSWORTH
+void serial_set_farnsworth();
+#endif
 void serial_tune_command();
 void serial_status();
 #ifdef FEATURE_SERIAL_HELP
@@ -364,6 +367,9 @@ void setup() {
       }
       select_tx(configuration.current_tx);
       #endif
+      #ifdef FEATURE_FARNSWORTH
+      if (configuration.wpm_farnsworth > wpm_limit_high) configuration.wpm_farnsworth = 0;
+      #endif
     } else {
       // First boot or magic number mismatch — write defaults
       write_settings_to_eeprom();
@@ -456,6 +462,9 @@ void initialize_state() {
   configuration.current_tx         = initial_tx;
   configuration.ptt_lead_time      = initial_ptt_lead_time_ms;
   configuration.ptt_tail_time      = initial_ptt_tail_time_ms;
+  #ifdef FEATURE_FARNSWORTH
+  configuration.wpm_farnsworth     = 0;
+  #endif
 
   // CW scheduler defaults
   cw_scheduler.cw_scheduler_state          = IDLE;
@@ -1240,6 +1249,27 @@ void serial_change_wordspace() {
 
 // ---------------------------------------------------------------------------
 
+#ifdef FEATURE_FARNSWORTH
+void serial_set_farnsworth() {
+
+  // 0 = disable; otherwise must be > wpm to have any effect.
+  int new_fw = serial_get_number_input(3, 0, wpm_limit_high);
+  if (new_fw >= 0) {
+    configuration.wpm_farnsworth = (uint8_t)new_fw;
+    config_dirty = 1;
+    if (new_fw == 0) {
+      primary_serial_port->println(F("Farnsworth disabled"));
+    } else {
+      primary_serial_port->print(F("Farnsworth WPM: "));
+      primary_serial_port->println(configuration.wpm_farnsworth);
+    }
+  }
+
+}
+#endif // FEATURE_FARNSWORTH
+
+// ---------------------------------------------------------------------------
+
 void serial_tune_command() {
 
   delay(50);
@@ -1291,6 +1321,13 @@ void serial_status() {
   primary_serial_port->println(F(" ms"));
   primary_serial_port->print(F("Wordspace: "));
   primary_serial_port->println(cw_scheduler.length_wordspace);
+  #ifdef FEATURE_FARNSWORTH
+  primary_serial_port->print(F("Farnsworth: "));
+  if (configuration.wpm_farnsworth > 0)
+    primary_serial_port->println(configuration.wpm_farnsworth);
+  else
+    primary_serial_port->println(F("Disabled"));
+  #endif
 
   #ifdef FEATURE_PADDLE_ECHO
   primary_serial_port->print(F("Paddle echo: "));
@@ -1353,6 +1390,9 @@ void print_serial_help() {
   primary_serial_port->println(F("\\T\t\tTune (hold TX until keypress)"));
   primary_serial_port->println(F("\\F####\t\tSet sidetone Hz"));
   primary_serial_port->println(F("\\W###\t\tSet WPM"));
+  #ifdef FEATURE_FARNSWORTH
+  primary_serial_port->println(F("\\M###\t\tSet Farnsworth inter-char WPM (0=off)"));
+  #endif
   primary_serial_port->println(F("\\Y##\t\tSet wordspace (dit units; default 7)"));
   primary_serial_port->println(F("\\$\t\tSave settings to EEPROM immediately"));
   primary_serial_port->println(F("\\\\\t\tClear send buffer"));
@@ -1585,9 +1625,13 @@ void process_cli_command(char cmd) {
     case 'D': // Ultimatic
     case 'E': // Set serial number
     case 'J': // Dah/dit ratio
+    #ifdef FEATURE_FARNSWORTH
+    case 'M': // \M### — set Farnsworth inter-char WPM (0 = disable)
+      serial_set_farnsworth();
+      break;
+    #endif
     case 'K': // Training
     case 'L': // Weighting
-    case 'M': // Farnsworth
     case 'O': // Sidetone mode cycle
     case 'Q': // QRSS mode
     case 'R': // Regular (non-QRSS) mode

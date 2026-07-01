@@ -14,7 +14,8 @@
 // ---------------------------------------------------------------------------
 #define initial_speed_wpm          20
 #define wpm_limit_low               5    // minimum WPM (rotary encoder and speed_change clamp)
-#define wpm_limit_high             60    // maximum WPM
+#define wpm_limit_high             99    // maximum WPM
+#define farnsworth_timing_calibration  1.15  // ARRL Farnsworth inter-char timing correction factor
 #define initial_sidetone_freq_hz   600
 #define char_send_buffer_size      50
 #define element_send_buffer_size   20

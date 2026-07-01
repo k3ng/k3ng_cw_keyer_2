@@ -384,11 +384,24 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
         schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, 3 * dit_ms, dit_ms, configuration_ptr);
         break;
 
-      case KEY_UP_LETTERSPACE_MINUS_1:
+      case KEY_UP_LETTERSPACE_MINUS_1: {
         // Full letter space is 3 dits; minus 1 because the last element already had 1 dit of keyup
-        schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, 0,
-                                  (cw_scheduler_ptr->length_letterspace - 1) * dit_ms, configuration_ptr);
+        unsigned int keyup = (cw_scheduler_ptr->length_letterspace - 1) * dit_ms;
+        #ifdef FEATURE_FARNSWORTH
+        // Farnsworth timing: http://www.arrl.org/files/file/Technology/x9004008.pdf
+        // Extra inter-char gap applied only during automatic (memory/serial) sending.
+        if ((cw_scheduler_ptr->current_sending_type == AUTOMATIC_SENDING) &&
+            (configuration_ptr->wpm_farnsworth > configuration_ptr->wpm)) {
+          float fw = (float)configuration_ptr->wpm_farnsworth;
+          float w  = (float)configuration_ptr->wpm;
+          float extra = (((farnsworth_timing_calibration * (60.0f * fw - 37.2f * w) /
+                           (w * fw)) / 19.0f) * 1000.0f) - (1200.0f / fw);
+          if (extra > 0) keyup += (unsigned int)extra;
+        }
+        #endif
+        schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, 0, keyup, configuration_ptr);
         break;
+      }
 
       case KEY_UP_WORDSPACE_MINUS_4:
         // Full word space is 7 dits; minus 4 because letter space + inter-element space already consumed

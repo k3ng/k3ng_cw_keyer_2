@@ -158,6 +158,7 @@ struct config_struct {
   uint8_t  current_tx;             // currently active TX line 1-6 (FEATURE_ADDITIONAL_TX_AND_PTT_PINS)
   unsigned int ptt_lead_time;   // PTT lead time in ms
   unsigned int ptt_tail_time;   // PTT tail time in ms
+  uint8_t  wpm_farnsworth;      // Farnsworth inter-char WPM (0 = disabled; must be > wpm to have effect)
 };
 
 // ---------------------------------------------------------------------------
