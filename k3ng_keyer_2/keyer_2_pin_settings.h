@@ -18,7 +18,7 @@
 
 #define tx_key_line_1   11    // TX key line 1  (HIGH = key down / TX on)
 
-#define ptt_tx_1         0    // PTT line for TX 1  (0 = not used)
+#define ptt_tx_1         13    // PTT line for TX 1  (0 = not used)
 
 #define sidetone_line    4    // Sidetone speaker output  (via tone())
 

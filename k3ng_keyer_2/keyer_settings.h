@@ -49,6 +49,14 @@
 // analog array and CLI commands \1 \2 \3.  Default 3.
 #define number_of_memories  3
 
+// ---------------------------------------------------------------------------
+// Additional TX/PTT lines (FEATURE_ADDITIONAL_TX_AND_PTT_PINS)
+// ---------------------------------------------------------------------------
+// How many transmitters are wired (1-6).  TX 1 is always active; higher-numbered
+// TXes are cycled with \X#.  Set to 1 to disable multi-TX.
+#define number_of_transmitters  2
+#define initial_tx              1
+
 // How long (ms) the user must be silent — with no paddle activity — for
 // program_memory() to decide the message is complete.  Inter-word pauses
 // shorter than this are fine and will just insert spaces.  Increase this

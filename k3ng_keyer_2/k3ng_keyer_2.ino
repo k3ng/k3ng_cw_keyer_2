@@ -178,6 +178,9 @@ void print_serial_help();
 #endif
 #endif
 void say_hi();
+#ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+void select_tx(byte tx_num);
+#endif
 #if defined(FEATURE_MEMORIES) || defined(FEATURE_PADDLE_ECHO)
 int  convert_cw_number_to_ascii(long cw_code);
 #endif
@@ -211,10 +214,34 @@ void setup() {
   pinMode(tx_key_line_1,    OUTPUT);
   if (ptt_tx_1)   pinMode(ptt_tx_1,   OUTPUT);
   pinMode(sidetone_line,    OUTPUT);
+  #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+  if (tx_key_line_2) { pinMode(tx_key_line_2, OUTPUT); }
+  if (tx_key_line_3) { pinMode(tx_key_line_3, OUTPUT); }
+  if (tx_key_line_4) { pinMode(tx_key_line_4, OUTPUT); }
+  if (tx_key_line_5) { pinMode(tx_key_line_5, OUTPUT); }
+  if (tx_key_line_6) { pinMode(tx_key_line_6, OUTPUT); }
+  if (ptt_tx_2)      { pinMode(ptt_tx_2,      OUTPUT); }
+  if (ptt_tx_3)      { pinMode(ptt_tx_3,      OUTPUT); }
+  if (ptt_tx_4)      { pinMode(ptt_tx_4,      OUTPUT); }
+  if (ptt_tx_5)      { pinMode(ptt_tx_5,      OUTPUT); }
+  if (ptt_tx_6)      { pinMode(ptt_tx_6,      OUTPUT); }
+  #endif
 
   // Safe initial states
   digitalWrite(tx_key_line_1, LOW);
   if (ptt_tx_1)   digitalWrite(ptt_tx_1,   LOW);
+  #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+  if (tx_key_line_2) { digitalWrite(tx_key_line_2, LOW); }
+  if (tx_key_line_3) { digitalWrite(tx_key_line_3, LOW); }
+  if (tx_key_line_4) { digitalWrite(tx_key_line_4, LOW); }
+  if (tx_key_line_5) { digitalWrite(tx_key_line_5, LOW); }
+  if (tx_key_line_6) { digitalWrite(tx_key_line_6, LOW); }
+  if (ptt_tx_2)      { digitalWrite(ptt_tx_2,      LOW); }
+  if (ptt_tx_3)      { digitalWrite(ptt_tx_3,      LOW); }
+  if (ptt_tx_4)      { digitalWrite(ptt_tx_4,      LOW); }
+  if (ptt_tx_5)      { digitalWrite(ptt_tx_5,      LOW); }
+  if (ptt_tx_6)      { digitalWrite(ptt_tx_6,      LOW); }
+  #endif
   noTone(sidetone_line);
 
   // Debug serial port for Winkey tracing (must come before other serial init)
@@ -291,6 +318,13 @@ void setup() {
       tx_ptt.cw_tx_enabled          = configuration.cw_tx_enabled;
       tx_ptt.ptt_lead_time          = configuration.ptt_lead_time;
       tx_ptt.ptt_tail_time          = configuration.ptt_tail_time;
+      #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+      // Sanitize current_tx in case an old EEPROM save has 0 in the former future_uint8_t_4 slot
+      if (configuration.current_tx < 1 || configuration.current_tx > number_of_transmitters) {
+        configuration.current_tx = initial_tx;
+      }
+      select_tx(configuration.current_tx);
+      #endif
     } else {
       // First boot or magic number mismatch — write defaults
       write_settings_to_eeprom();
@@ -377,7 +411,7 @@ void initialize_state() {
   configuration.length_wordspace   = default_length_wordspace;
   configuration.cw_tx_enabled      = 1;
   configuration.beacon_mode_on_boot_up = 0;
-  configuration.future_uint8_t_4   = 0;
+  configuration.current_tx         = initial_tx;
   configuration.ptt_lead_time      = initial_ptt_lead_time_ms;
   configuration.ptt_tail_time      = initial_ptt_tail_time_ms;
 
@@ -604,6 +638,10 @@ void cw_key(struct tx_ptt_struct *tx_ptt_ptr, int state, config_struct *configur
 // ptt(): assert or release the PTT line
 void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key) {
 
+  #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+  if (!tx_ptt_ptr->pin_ptt) return;  // PTT pin not wired for this TX
+  #endif
+
   if (key && tx_ptt_ptr->cw_tx_enabled) {
     if (!tx_ptt_ptr->ptt_line_asserted) {
       digitalWrite(tx_ptt_ptr->pin_ptt, HIGH);
@@ -618,6 +656,40 @@ void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key) {
   }
 
 }
+
+// ---------------------------------------------------------------------------
+
+#ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+// select_tx(): switch the active TX/PTT line
+void select_tx(byte tx_num) {
+
+  if (tx_num < 1 || tx_num > number_of_transmitters) tx_num = 1;
+  byte new_pin_tx = 0, new_pin_ptt = 0;
+  switch (tx_num) {
+    case 1: new_pin_tx = tx_key_line_1; new_pin_ptt = ptt_tx_1; break;
+    #if number_of_transmitters >= 2
+    case 2: new_pin_tx = tx_key_line_2; new_pin_ptt = ptt_tx_2; break;
+    #endif
+    #if number_of_transmitters >= 3
+    case 3: new_pin_tx = tx_key_line_3; new_pin_ptt = ptt_tx_3; break;
+    #endif
+    #if number_of_transmitters >= 4
+    case 4: new_pin_tx = tx_key_line_4; new_pin_ptt = ptt_tx_4; break;
+    #endif
+    #if number_of_transmitters >= 5
+    case 5: new_pin_tx = tx_key_line_5; new_pin_ptt = ptt_tx_5; break;
+    #endif
+    #if number_of_transmitters >= 6
+    case 6: new_pin_tx = tx_key_line_6; new_pin_ptt = ptt_tx_6; break;
+    #endif
+  }
+  if (new_pin_tx == 0 && tx_num != 1) return;  // unconfigured TX line
+  configuration.current_tx = tx_num;
+  tx_ptt.pin_tx  = new_pin_tx;
+  tx_ptt.pin_ptt = new_pin_ptt;
+
+}
+#endif // FEATURE_ADDITIONAL_TX_AND_PTT_PINS
 
 // ---------------------------------------------------------------------------
 
@@ -1117,6 +1189,10 @@ void serial_status() {
   primary_serial_port->println(F(" Hz"));
   primary_serial_port->print(F("TX: "));
   primary_serial_port->println(tx_ptt.cw_tx_enabled ? F("Enabled") : F("Disabled (sidetone only)"));
+  #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+  primary_serial_port->print(F("Active TX line: "));
+  primary_serial_port->println(configuration.current_tx);
+  #endif
   primary_serial_port->print(F("PTT lead: "));
   primary_serial_port->print(tx_ptt.ptt_lead_time);
   primary_serial_port->println(F(" ms"));
@@ -1199,6 +1275,9 @@ void print_serial_help() {
   #endif
   #if defined(FEATURE_BEACON_SETTING) && defined(FEATURE_MEMORIES)
   primary_serial_port->println(F("\\_\t\tToggle beacon-on-boot enable/disable"));
+  #endif
+  #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+  primary_serial_port->println(F("\\X#\t\tSwitch active TX line (1-6)"));
   #endif
   primary_serial_port->println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
@@ -1430,7 +1509,19 @@ void process_cli_command(char cmd) {
       primary_serial_port->println(pot_activated ? F("Active") : F("Inactive"));
       break;
     #endif // FEATURE_POTENTIOMETER
-    case 'X': // Switch TX
+    #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
+    case 'X': { // Switch TX — \X1 through \X6
+      int tx_num = serial_get_number_input(1, 1, number_of_transmitters);
+      if (tx_num < 1) {
+        primary_serial_port->println(F("TX# out of range"));
+      } else {
+        select_tx((byte)tx_num);
+        primary_serial_port->print(F("TX "));
+        primary_serial_port->println(configuration.current_tx);
+      }
+      break;
+    }
+    #endif // FEATURE_ADDITIONAL_TX_AND_PTT_PINS
     case 'Z': // Autospace
       primary_serial_port->println(F("Not implemented yet"));
       break;
@@ -1812,7 +1903,7 @@ static void play_memory_with_depth(byte memory_number, byte depth) {
         break;
       }
 
-      // Not yet in v2: \Q (QRSS), \R (normal speed), \H (Hell), \L (CW), \X (switch TX), \+ (prosign)
+      // Not yet in v2: \Q (QRSS), \R (normal speed), \H (Hell), \L (CW), \+ (prosign)
       default:
         break;
     }
