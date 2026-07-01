@@ -13,6 +13,8 @@
 // Default values
 // ---------------------------------------------------------------------------
 #define initial_speed_wpm          20
+#define wpm_limit_low               5    // minimum WPM (rotary encoder and speed_change clamp)
+#define wpm_limit_high             60    // maximum WPM
 #define initial_sidetone_freq_hz   600
 #define char_send_buffer_size      50
 #define element_send_buffer_size   20

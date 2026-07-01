@@ -73,6 +73,27 @@ byte last_pot_wpm_read  = 0;
 byte pot_activated      = potentiometer_always_on;
 #endif
 
+#ifdef FEATURE_ROTARY_ENCODER
+// Full-step state table (emits code at 00 only).  From Ben Buxton's implementation.
+#ifdef OPTION_ENCODER_HALF_STEP_MODE
+  static const unsigned char ttable[6][4] PROGMEM = {
+    {0x3 , 0x2, 0x1,  0x0}, {0x23, 0x0, 0x1, 0x0},
+    {0x13, 0x2, 0x0,  0x0}, {0x3 , 0x5, 0x4, 0x0},
+    {0x3 , 0x3, 0x4, 0x10}, {0x3 , 0x5, 0x3, 0x20}
+  };
+#else
+  static const unsigned char ttable[7][4] PROGMEM = {
+    {0x0, 0x2, 0x4,  0x0}, {0x3, 0x0, 0x1, 0x10},
+    {0x3, 0x2, 0x0,  0x0}, {0x3, 0x2, 0x1,  0x0},
+    {0x6, 0x0, 0x4,  0x0}, {0x6, 0x5, 0x0, 0x20},
+    {0x6, 0x5, 0x4,  0x0},
+  };
+#endif
+#define DIR_CCW 0x10
+#define DIR_CW  0x20
+static unsigned char encoder_state = 0;
+#endif // FEATURE_ROTARY_ENCODER
+
 #ifdef FEATURE_COMMAND_MODE
 
 // Command mode state constants
@@ -141,6 +162,11 @@ void service_beacon_mode();
 #ifdef FEATURE_POTENTIOMETER
 byte pot_value_wpm();
 void check_potentiometer();
+#endif
+#ifdef FEATURE_ROTARY_ENCODER
+void speed_change(int change);
+int  chk_rotary_encoder();
+void check_rotary_encoder();
 #endif
 void write_settings_to_eeprom();
 bool read_settings_from_eeprom();
@@ -293,6 +319,19 @@ void setup() {
   last_pot_wpm_read  = pot_value_wpm();
   #endif
 
+  // Rotary encoder init
+  #ifdef FEATURE_ROTARY_ENCODER
+  #ifdef OPTION_ENCODER_ENABLE_PULLUPS
+  pinMode(rotary_pin1, INPUT_PULLUP);
+  pinMode(rotary_pin2, INPUT_PULLUP);
+  #else
+  pinMode(rotary_pin1, INPUT);
+  pinMode(rotary_pin2, INPUT);
+  digitalWrite(rotary_pin1, HIGH);
+  digitalWrite(rotary_pin2, HIGH);
+  #endif
+  #endif
+
   // Factory reset: squeeze both paddles at power-up to clear settings and memories
   if (digitalRead(paddle_left) == LOW && digitalRead(paddle_right) == LOW) {
     while (digitalRead(paddle_left) == LOW || digitalRead(paddle_right) == LOW) {}
@@ -374,6 +413,9 @@ void loop() {
   #endif
   #ifdef FEATURE_POTENTIOMETER
   check_potentiometer();
+  #endif
+  #ifdef FEATURE_ROTARY_ENCODER
+  check_rotary_encoder();
   #endif
   #ifdef FEATURE_PADDLE_ECHO
   service_paddle_echo();
@@ -595,6 +637,54 @@ void check_potentiometer() {
 }
 
 #endif // FEATURE_POTENTIOMETER
+
+// ---------------------------------------------------------------------------
+
+#ifdef FEATURE_ROTARY_ENCODER
+
+// speed_change(): apply a WPM delta, clamped to wpm_limit_low/high
+void speed_change(int change) {
+  int new_wpm = (int)configuration.wpm + change;
+  if (new_wpm > wpm_limit_low && new_wpm < wpm_limit_high) {
+    configuration.wpm = (unsigned int)new_wpm;
+    config_dirty = 1;
+  }
+}
+
+// chk_rotary_encoder(): read encoder pins and return step (+1/+2/-1/-2 or 0)
+// Returns ±2 when turning fast (4 steps within 250 ms), ±1 otherwise.
+int chk_rotary_encoder() {
+
+  static unsigned long timestamp[5];
+
+  unsigned char pinstate = (digitalRead(rotary_pin2) << 1) | digitalRead(rotary_pin1);
+  encoder_state = pgm_read_byte(&ttable[encoder_state & 0xf][pinstate]);
+  unsigned char result = encoder_state & 0x30;
+  if (result) {
+    timestamp[0] = timestamp[1];
+    timestamp[1] = timestamp[2];
+    timestamp[2] = timestamp[3];
+    timestamp[3] = timestamp[4];
+    timestamp[4] = millis();
+    unsigned long elapsed = timestamp[4] - timestamp[0];
+    if (result == DIR_CW)  { return (elapsed < 250) ? 2 : 1; }
+    if (result == DIR_CCW) { return (elapsed < 250) ? -2 : -1; }
+  }
+  return 0;
+
+}
+
+// check_rotary_encoder(): called from loop() every iteration
+void check_rotary_encoder() {
+
+  int step = chk_rotary_encoder();
+  if (step != 0) {
+    speed_change(step);
+  }
+
+}
+
+#endif // FEATURE_ROTARY_ENCODER
 
 // ---------------------------------------------------------------------------
 // Hardware functions — called by keyer_2_cw.cpp via prototypes in keyer_2.h
