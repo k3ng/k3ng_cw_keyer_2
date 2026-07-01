@@ -168,6 +168,9 @@ void speed_change(int change);
 int  chk_rotary_encoder();
 void check_rotary_encoder();
 #endif
+#ifdef FEATURE_SIDETONE_SWITCH
+void check_sidetone_switch();
+#endif
 void write_settings_to_eeprom();
 bool read_settings_from_eeprom();
 void check_for_dirty_configuration();
@@ -335,6 +338,11 @@ void setup() {
   #endif
   #endif
 
+  // Sidetone switch init
+  #ifdef FEATURE_SIDETONE_SWITCH
+  pinMode(SIDETONE_SWITCH, INPUT_PULLUP);
+  #endif
+
   // Factory reset: squeeze both paddles at power-up to clear settings and memories
   if (digitalRead(paddle_left) == LOW && digitalRead(paddle_right) == LOW) {
     while (digitalRead(paddle_left) == LOW || digitalRead(paddle_right) == LOW) {}
@@ -422,6 +430,9 @@ void loop() {
   #endif
   #ifdef FEATURE_ROTARY_ENCODER
   check_rotary_encoder();
+  #endif
+  #ifdef FEATURE_SIDETONE_SWITCH
+  check_sidetone_switch();
   #endif
   #ifdef FEATURE_PADDLE_ECHO
   service_paddle_echo();
@@ -694,6 +705,28 @@ void check_rotary_encoder() {
 }
 
 #endif // FEATURE_ROTARY_ENCODER
+
+// ---------------------------------------------------------------------------
+
+#ifdef FEATURE_SIDETONE_SWITCH
+// check_sidetone_switch(): read the external sidetone on/off toggle switch.
+// Switch wired between SIDETONE_SWITCH pin and GND; pin uses internal pullup.
+// HIGH (open) = sidetone on; LOW (closed to GND) = sidetone off.
+// Polled every 250 ms to debounce.
+void check_sidetone_switch() {
+
+  static unsigned long last_check = 0;
+  if (millis() - last_check < 250) return;
+  last_check = millis();
+
+  byte sw = digitalRead(SIDETONE_SWITCH);
+  byte want = (sw == HIGH) ? 1 : 0;
+  if (tx_ptt.sidetone_enabled != want) {
+    tx_ptt.sidetone_enabled = want;
+  }
+
+}
+#endif // FEATURE_SIDETONE_SWITCH
 
 // ---------------------------------------------------------------------------
 // Hardware functions — called by keyer_2_cw.cpp via prototypes in keyer_2.h
@@ -1321,6 +1354,10 @@ void serial_status() {
   primary_serial_port->println(F(" ms"));
   primary_serial_port->print(F("Wordspace: "));
   primary_serial_port->println(cw_scheduler.length_wordspace);
+  #ifdef FEATURE_SIDETONE_SWITCH
+  primary_serial_port->print(F("Sidetone switch: "));
+  primary_serial_port->println(digitalRead(SIDETONE_SWITCH) == HIGH ? F("On") : F("Off"));
+  #endif
   #ifdef FEATURE_FARNSWORTH
   primary_serial_port->print(F("Farnsworth: "));
   if (configuration.wpm_farnsworth > 0)
