@@ -387,10 +387,10 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
       }
 
       case THREE_UNITS_KEY_DOWN_1_UNIT_KEY_UP: {    // dah
-        unsigned int dn = 3 * dit_ms;
+        unsigned int dn = (unsigned int)((long)dit_ms * configuration_ptr->dah_to_dit_ratio / 100L);
         #ifdef FEATURE_QLF
         if (configuration_ptr->qlf_active)
-          dn = (unsigned int)((long)(3 * dit_ms) * random(qlf_dah_min, qlf_dah_max + 1) / 100L);
+          dn = (unsigned int)((long)dn * random(qlf_dah_min, qlf_dah_max + 1) / 100L);
         #endif
         schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, dn, dit_ms, configuration_ptr);
         break;

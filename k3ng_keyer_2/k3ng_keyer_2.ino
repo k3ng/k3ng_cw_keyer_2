@@ -385,6 +385,9 @@ void setup() {
       if (configuration.cmos_super_keyer_iambic_b_timing_on > 1)    configuration.cmos_super_keyer_iambic_b_timing_on = 0;
       if (configuration.cmos_super_keyer_iambic_b_timing_percent >= 100) configuration.cmos_super_keyer_iambic_b_timing_percent = default_cmos_super_keyer_iambic_b_timing_percent;
       #endif
+      if ((configuration.dah_to_dit_ratio < dah_to_dit_ratio_lower_limit) ||
+          (configuration.dah_to_dit_ratio > dah_to_dit_ratio_upper_limit))
+        configuration.dah_to_dit_ratio = initial_dah_to_dit_ratio;
     } else {
       // First boot or magic number mismatch — write defaults
       write_settings_to_eeprom();
@@ -493,6 +496,7 @@ void initialize_state() {
   configuration.cmos_super_keyer_iambic_b_timing_on      = 1;
   #endif
   #endif
+  configuration.dah_to_dit_ratio = initial_dah_to_dit_ratio;
 
   // CW scheduler defaults
   cw_scheduler.cw_scheduler_state          = IDLE;
@@ -686,6 +690,14 @@ void speed_change(int change) {
     configuration.wpm = (unsigned int)new_wpm;
     config_dirty = 1;
   }
+  #ifdef FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
+  if ((configuration.wpm >= DYNAMIC_DAH_TO_DIT_RATIO_LOWER_LIMIT_WPM) &&
+      (configuration.wpm <= DYNAMIC_DAH_TO_DIT_RATIO_UPPER_LIMIT_WPM)) {
+    configuration.dah_to_dit_ratio = map(configuration.wpm,
+      DYNAMIC_DAH_TO_DIT_RATIO_LOWER_LIMIT_WPM, DYNAMIC_DAH_TO_DIT_RATIO_UPPER_LIMIT_WPM,
+      DYNAMIC_DAH_TO_DIT_RATIO_LOWER_LIMIT_RATIO, DYNAMIC_DAH_TO_DIT_RATIO_UPPER_LIMIT_RATIO);
+  }
+  #endif
 }
 
 // chk_rotary_encoder(): read encoder pins and return step (+1/+2/-1/-2 or 0)
@@ -1451,6 +1463,8 @@ void serial_status() {
   else
     primary_serial_port->println(F("Disabled"));
   #endif
+  primary_serial_port->print(F("Dah/dit ratio: "));
+  primary_serial_port->println((float)configuration.dah_to_dit_ratio / 100.0);
   #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
   primary_serial_port->print(F("CMOS Super Keyer: "));
   primary_serial_port->print(configuration.cmos_super_keyer_iambic_b_timing_on ? F("On") : F("Off"));
@@ -1541,6 +1555,9 @@ void print_serial_help() {
   #endif
   #ifdef FEATURE_QLF
   primary_serial_port->println(F("\\{\t\tToggle QLF (poor fist) mode"));
+  #endif
+  #ifdef FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
+  primary_serial_port->println(F("\\J###\t\tSet dah/dit ratio (150-810, 300=3:1)"));
   #endif
   #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
   primary_serial_port->println(F("\\&\t\tToggle CMOS Super Keyer Iambic B timing"));
@@ -1789,7 +1806,20 @@ void process_cli_command(char cmd) {
     case 'C': // Single paddle
     case 'D': // Ultimatic
     case 'E': // Set serial number
-    case 'J': // Dah/dit ratio
+    #ifdef FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
+    case 'J': {
+      int new_ratio = serial_get_number_input(3, dah_to_dit_ratio_lower_limit, dah_to_dit_ratio_upper_limit);
+      if (new_ratio >= dah_to_dit_ratio_lower_limit) {
+        configuration.dah_to_dit_ratio = (unsigned int)new_ratio;
+        config_dirty = 1;
+        primary_serial_port->print(F("Dah/dit ratio: "));
+        primary_serial_port->println((float)configuration.dah_to_dit_ratio / 100.0);
+      }
+      break;
+    }
+    #else
+    case 'J': // Dah/dit ratio (FEATURE_DYNAMIC_DAH_TO_DIT_RATIO not enabled)
+    #endif
     #ifdef FEATURE_FARNSWORTH
     case 'M': // \M### — set Farnsworth inter-char WPM (0 = disable)
       serial_set_farnsworth();

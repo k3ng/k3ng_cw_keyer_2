@@ -162,6 +162,7 @@ struct config_struct {
   uint8_t  qlf_active;          // 1 = QLF (poor fist) random timing enabled (FEATURE_QLF)
   uint8_t  cmos_super_keyer_iambic_b_timing_on;      // 1 = CMOS Super Keyer Iambic B timing active
   uint8_t  cmos_super_keyer_iambic_b_timing_percent; // threshold % of element elapsed before opposite paddle is latched (0-99)
+  unsigned int dah_to_dit_ratio;                     // dah duration as integer * 100 (300 = 3:1, 250 = 2.5:1)
 };
 
 // ---------------------------------------------------------------------------

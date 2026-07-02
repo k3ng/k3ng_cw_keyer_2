@@ -34,6 +34,19 @@
 // 0% = true Iambic B; 100% = Iambic A behavior.
 // ---------------------------------------------------------------------------
 #define default_cmos_super_keyer_iambic_b_timing_percent  33
+
+// ---------------------------------------------------------------------------
+// Dah-to-dit ratio — FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
+// Stored as integer * 100 (300 = 3:1 normal, 250 = 2.5:1).
+// Dynamic mode linearly adjusts ratio across a WPM range.
+// ---------------------------------------------------------------------------
+#define initial_dah_to_dit_ratio                    300
+#define dah_to_dit_ratio_lower_limit                150  // minimum allowed ratio
+#define dah_to_dit_ratio_upper_limit                810  // maximum allowed ratio
+#define DYNAMIC_DAH_TO_DIT_RATIO_LOWER_LIMIT_WPM     30
+#define DYNAMIC_DAH_TO_DIT_RATIO_LOWER_LIMIT_RATIO  300  // ratio at lower WPM limit
+#define DYNAMIC_DAH_TO_DIT_RATIO_UPPER_LIMIT_WPM     70
+#define DYNAMIC_DAH_TO_DIT_RATIO_UPPER_LIMIT_RATIO  240  // ratio at upper WPM limit
 #define initial_sidetone_freq_hz   600
 #define char_send_buffer_size      50
 #define element_send_buffer_size   20
