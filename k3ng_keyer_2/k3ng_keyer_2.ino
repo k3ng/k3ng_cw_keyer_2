@@ -66,6 +66,12 @@ unsigned long paddle_echo_buffer_decode_time = 0;
 byte          paddle_echo_active            = 1;   // toggled by \*
 #endif
 
+#ifdef FEATURE_STRAIGHT_KEY_ECHO
+long          sk_echo_buffer               = 0;
+unsigned long sk_echo_buffer_decode_time   = 0;
+byte          sk_echo_active               = 1;   // toggled by \`
+#endif
+
 #ifdef FEATURE_POTENTIOMETER
 byte pot_wpm_low_value  = initial_pot_wpm_low_value;
 byte pot_wpm_high_value = initial_pot_wpm_high_value;
@@ -221,6 +227,9 @@ int  convert_cw_number_to_ascii(long cw_code);
 #endif
 #ifdef FEATURE_PADDLE_ECHO
 void service_paddle_echo();
+#endif
+#ifdef FEATURE_STRAIGHT_KEY_ECHO
+void service_straight_key_echo();
 #endif
 #ifdef FEATURE_MEMORIES
 int  memory_start(byte memory_number);
@@ -456,6 +465,9 @@ void loop() {
   #endif
   #ifdef FEATURE_STRAIGHT_KEY
   service_straight_key();
+  #endif
+  #ifdef FEATURE_STRAIGHT_KEY_ECHO
+  service_straight_key_echo();
   #endif
   #ifdef FEATURE_PADDLE_ECHO
   service_paddle_echo();
@@ -785,12 +797,18 @@ void service_straight_key() {
   if (pin_straight_key == 0) return;
 
   static byte last_sk_state = 0;
+  #ifdef FEATURE_STRAIGHT_KEY_ECHO
+  static unsigned long sk_key_down_time = 0;
+  #endif
   byte sk = digitalRead(pin_straight_key);
 
   if (sk == LOW) {
     if (!last_sk_state) {
       last_sk_state = 1;
       cw_scheduler.pause_sending_buffer = 1;  // straight key interrupts auto buffer
+      #ifdef FEATURE_STRAIGHT_KEY_ECHO
+      sk_key_down_time = millis();
+      #endif
     }
     if (cw_scheduler.cw_scheduler_state != KEY_DOWN_HOLD) {
       cw_scheduler.current_sending_type = MANUAL_SENDING;
@@ -800,6 +818,18 @@ void service_straight_key() {
     if (last_sk_state) {
       last_sk_state = 0;
       cw_scheduler.pause_sending_buffer = 0;
+      #ifdef FEATURE_STRAIGHT_KEY_ECHO
+      if (sk_echo_active && sk_key_down_time > 0) {
+        unsigned long dit_ms = 1200UL / configuration.wpm;
+        unsigned long duration = millis() - sk_key_down_time;
+        // classify: < 2 dit lengths = dit (1), otherwise = dah (2)
+        byte element = (duration < (dit_ms * 2)) ? 1 : 2;
+        sk_echo_buffer = sk_echo_buffer * 10 + element;
+        // decode timeout: letterspace after the element
+        sk_echo_buffer_decode_time = millis() + dit_ms * cw_scheduler.length_letterspace;
+        sk_key_down_time = 0;
+      }
+      #endif
     }
     if (cw_scheduler.cw_scheduler_state == KEY_DOWN_HOLD) {
       schedule_cw_keydown_keyup(&cw_scheduler, &tx_ptt, REQUEST_KEY_UP, REQUEST_KEY_UP, &configuration);
@@ -808,6 +838,36 @@ void service_straight_key() {
 
 }
 #endif // FEATURE_STRAIGHT_KEY
+
+// ---------------------------------------------------------------------------
+// service_straight_key_echo() — FEATURE_STRAIGHT_KEY_ECHO
+// Decodes accumulated element buffer and prints character to serial.
+// ---------------------------------------------------------------------------
+#ifdef FEATURE_STRAIGHT_KEY_ECHO
+void service_straight_key_echo() {
+
+  if (!sk_echo_active) return;
+
+  static byte sk_echo_space_sent = 1;
+  unsigned long dit_ms = 1200UL / configuration.wpm;
+
+  if (sk_echo_buffer && millis() > sk_echo_buffer_decode_time) {
+    int ch = convert_cw_number_to_ascii(sk_echo_buffer);
+    if (ch > 0) primary_serial_port->write((char)ch);
+    sk_echo_buffer = 0;
+    sk_echo_buffer_decode_time = millis() + dit_ms * cw_scheduler.length_letterspace;
+    sk_echo_space_sent = 0;
+  }
+
+  if (!sk_echo_buffer && !sk_echo_space_sent &&
+      millis() > sk_echo_buffer_decode_time +
+                 dit_ms * (cw_scheduler.length_wordspace - cw_scheduler.length_letterspace)) {
+    primary_serial_port->write(' ');
+    sk_echo_space_sent = 1;
+  }
+
+}
+#endif // FEATURE_STRAIGHT_KEY_ECHO
 
 // ---------------------------------------------------------------------------
 // Hardware functions — called by keyer_2_cw.cpp via prototypes in keyer_2.h
@@ -1533,6 +1593,10 @@ void serial_status() {
   primary_serial_port->print(F("Paddle echo: "));
   primary_serial_port->println(paddle_echo_active ? F("On") : F("Off"));
   #endif
+  #ifdef FEATURE_STRAIGHT_KEY_ECHO
+  primary_serial_port->print(F("Straight key echo: "));
+  primary_serial_port->println(sk_echo_active ? F("On") : F("Off"));
+  #endif
 
   #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
   primary_serial_port->print(F("Beacon: "));
@@ -1602,6 +1666,9 @@ void print_serial_help() {
   #endif
   #ifdef FEATURE_PADDLE_ECHO
   primary_serial_port->println(F("\\*\t\tToggle paddle echo on/off"));
+  #endif
+  #ifdef FEATURE_STRAIGHT_KEY_ECHO
+  primary_serial_port->println(F("\\`\t\tToggle straight key echo on/off"));
   #endif
   #if defined(FEATURE_BEACON_SETTING) && defined(FEATURE_MEMORIES)
   primary_serial_port->println(F("\\_\t\tToggle beacon-on-boot enable/disable"));
@@ -1800,6 +1867,14 @@ void process_cli_command(char cmd) {
       paddle_echo_active = !paddle_echo_active;
       primary_serial_port->print(F("Paddle echo "));
       primary_serial_port->println(paddle_echo_active ? F("On") : F("Off"));
+      break;
+    #endif
+
+    #ifdef FEATURE_STRAIGHT_KEY_ECHO
+    case '`':
+      sk_echo_active = !sk_echo_active;
+      primary_serial_port->print(F("Straight key echo "));
+      primary_serial_port->println(sk_echo_active ? F("On") : F("Off"));
       break;
     #endif
 

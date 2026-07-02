@@ -48,6 +48,7 @@
 //#define FEATURE_QLF                            // QLF (poor fist) mode
 #define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 #define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO       // Dynamically adjust dah-to-dit ratio
+#define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
 
 // #define OPTION_CMOS_SUPER_KEYER_IAMBIC_B_TIMING_ON_BY_DEFAULT  // Enable CMOS Super Keyer timing by default
 
@@ -67,8 +68,8 @@
 
 
 
-#define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
-// #define FEATURE_STRAIGHT_KEY_ECHO              // Echo straight key characters to serial port
+
+#define FEATURE_STRAIGHT_KEY_ECHO              // Echo straight key characters to serial port
 // #define FEATURE_CW_DECODER                     // CW decoder (https://github.com/k3ng/k3ng_cw_keyer/wiki/385-Feature:-CW-Decoder)
 // #define FEATURE_TRAINING_COMMAND_LINE_INTERFACE // CW training via CLI
 // #define FEATURE_ALPHABET_SEND_PRACTICE         // Command mode S: alphabet practice (by Ryan, KC2ZWM)
