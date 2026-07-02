@@ -986,8 +986,9 @@ void check_paddles() {
   static byte dah_buffer = 0;   // 1 = dah has been latched while a dit was sending
   static byte last_sent  = 0;   // DIT or DAH — used for iambic squeeze suppression
   #ifdef FEATURE_DEAD_OP_WATCHDOG
-  static unsigned int dit_counter = 0;  // consecutive dits sent; reset on any dah
-  static unsigned int dah_counter = 0;  // consecutive dahs sent; reset on any dit
+  static unsigned int dit_counter     = 0;  // consecutive dits sent; reset on any dah
+  static unsigned int dah_counter     = 0;  // consecutive dahs sent; reset on any dit
+  static unsigned int squeeze_counter = 0;  // elements sent while both paddles held; reset when either released
   #endif
 
   byte left  = digitalRead(paddle_left);
@@ -1032,8 +1033,10 @@ void check_paddles() {
       #endif
 
       #ifdef FEATURE_DEAD_OP_WATCHDOG
-      #define DOW_DIT() do { dit_counter++; dah_counter = 0; } while(0)
-      #define DOW_DAH() do { dah_counter++; dit_counter = 0; } while(0)
+      #define DOW_DIT() do { dit_counter++; dah_counter = 0; \
+        if ((left == LOW) && (right == LOW)) { squeeze_counter++; } else { squeeze_counter = 0; } } while(0)
+      #define DOW_DAH() do { dah_counter++; dit_counter = 0; \
+        if ((left == LOW) && (right == LOW)) { squeeze_counter++; } else { squeeze_counter = 0; } } while(0)
       #else
       #define DOW_DIT() do {} while(0)
       #define DOW_DAH() do {} while(0)
@@ -1178,9 +1181,11 @@ void check_paddles() {
     }
   }
 
-  // Dead-op watchdog: if paddle appears stuck (100+ consecutive same elements), kill TX
+  // Dead-op watchdog: kill TX if paddle appears stuck.
+  // Triggers on 100+ consecutive dits, 100+ consecutive dahs,
+  // or 100+ elements sent while both paddles are simultaneously held (squeeze stuck).
   #ifdef FEATURE_DEAD_OP_WATCHDOG
-  if ((dit_counter > 100) || (dah_counter > 100)) {
+  if ((dit_counter > 100) || (dah_counter > 100) || (squeeze_counter > 100)) {
     tx_ptt.cw_tx_enabled = 0;
   }
   #endif
