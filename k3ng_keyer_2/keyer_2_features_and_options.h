@@ -67,7 +67,7 @@
 
 
 
-// #define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
+#define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
 // #define FEATURE_STRAIGHT_KEY_ECHO              // Echo straight key characters to serial port
 // #define FEATURE_CW_DECODER                     // CW decoder (https://github.com/k3ng/k3ng_cw_keyer/wiki/385-Feature:-CW-Decoder)
 // #define FEATURE_TRAINING_COMMAND_LINE_INTERFACE // CW training via CLI

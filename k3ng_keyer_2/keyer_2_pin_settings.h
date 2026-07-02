@@ -87,6 +87,12 @@
   #define SIDETONE_SWITCH   8
 #endif
 
+// Dedicated straight key input pin (FEATURE_STRAIGHT_KEY)
+// Set to a real pin number; pulled up internally — key tip connects pin to GND.
+#ifdef FEATURE_STRAIGHT_KEY
+  #define pin_straight_key  0   // 0 = not connected; set to actual pin
+#endif
+
 // LCD pins (4-bit mode)
 #if defined(FEATURE_LCD_4BIT) || defined(FEATURE_LCD_8BIT)
   #define lcd_rs      A2

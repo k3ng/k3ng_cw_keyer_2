@@ -171,6 +171,9 @@ void check_rotary_encoder();
 #ifdef FEATURE_SIDETONE_SWITCH
 void check_sidetone_switch();
 #endif
+#ifdef FEATURE_STRAIGHT_KEY
+void service_straight_key();
+#endif
 void write_settings_to_eeprom();
 bool read_settings_from_eeprom();
 void check_for_dirty_configuration();
@@ -342,6 +345,10 @@ void setup() {
   #ifdef FEATURE_SIDETONE_SWITCH
   pinMode(SIDETONE_SWITCH, INPUT_PULLUP);
   #endif
+  // Straight key pin init
+  #ifdef FEATURE_STRAIGHT_KEY
+  if (pin_straight_key != 0) pinMode(pin_straight_key, INPUT_PULLUP);
+  #endif
 
   // Factory reset: squeeze both paddles at power-up to clear settings and memories
   if (digitalRead(paddle_left) == LOW && digitalRead(paddle_right) == LOW) {
@@ -446,6 +453,9 @@ void loop() {
   #endif
   #ifdef FEATURE_SIDETONE_SWITCH
   check_sidetone_switch();
+  #endif
+  #ifdef FEATURE_STRAIGHT_KEY
+  service_straight_key();
   #endif
   #ifdef FEATURE_PADDLE_ECHO
   service_paddle_echo();
@@ -763,6 +773,41 @@ void check_sidetone_switch() {
 
 }
 #endif // FEATURE_SIDETONE_SWITCH
+
+// ---------------------------------------------------------------------------
+// service_straight_key() — FEATURE_STRAIGHT_KEY
+// Reads a dedicated straight key pin and drives key down/up directly through
+// the CW scheduler's hold state, exactly like straight mode in check_paddles().
+// ---------------------------------------------------------------------------
+#ifdef FEATURE_STRAIGHT_KEY
+void service_straight_key() {
+
+  if (pin_straight_key == 0) return;
+
+  static byte last_sk_state = 0;
+  byte sk = digitalRead(pin_straight_key);
+
+  if (sk == LOW) {
+    if (!last_sk_state) {
+      last_sk_state = 1;
+      cw_scheduler.pause_sending_buffer = 1;  // straight key interrupts auto buffer
+    }
+    if (cw_scheduler.cw_scheduler_state != KEY_DOWN_HOLD) {
+      cw_scheduler.current_sending_type = MANUAL_SENDING;
+      schedule_cw_keydown_keyup(&cw_scheduler, &tx_ptt, REQUEST_KEY_DOWN, REQUEST_KEY_DOWN, &configuration);
+    }
+  } else {
+    if (last_sk_state) {
+      last_sk_state = 0;
+      cw_scheduler.pause_sending_buffer = 0;
+    }
+    if (cw_scheduler.cw_scheduler_state == KEY_DOWN_HOLD) {
+      schedule_cw_keydown_keyup(&cw_scheduler, &tx_ptt, REQUEST_KEY_UP, REQUEST_KEY_UP, &configuration);
+    }
+  }
+
+}
+#endif // FEATURE_STRAIGHT_KEY
 
 // ---------------------------------------------------------------------------
 // Hardware functions — called by keyer_2_cw.cpp via prototypes in keyer_2.h
