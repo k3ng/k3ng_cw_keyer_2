@@ -45,6 +45,7 @@
 #define FEATURE_FARNSWORTH                     // Farnsworth sending speed
 #define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
 #define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears TX if paddle stuck > 100 consecutive dits or dahs
+//#define FEATURE_QLF                            // QLF (poor fist) mode
 
 // #define DEBUG_WINKEY_EMULATION             // Verbose Winkey debug output on DEBUG_WINKEY_PORT
 // #define DEBUG_WINKEY_PORT       Serial3    // Serial port for Winkey debug output
@@ -59,7 +60,7 @@
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
 // #define FEATURE_AUTOSPACE                      // Automatic character spacing
 
-// #define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
+#define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 // #define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO       // Dynamically adjust dah-to-dit ratio
 // #define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
 // #define FEATURE_STRAIGHT_KEY_ECHO              // Echo straight key characters to serial port
@@ -69,7 +70,7 @@
 // #define FEATURE_ALPHABET_SEND_PRACTICE         // Command mode S: alphabet practice (by Ryan, KC2ZWM)
 // #define FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE  // Command mode U
 // #define FEATURE_COMMAND_MODE_ENHANCED_CMD_ACKNOWLEDGEMENT
-#define FEATURE_QLF                            // QLF (poor fist) mode
+
 // #define FEATURE_HELL                           // Hellschreiber mode
 // #define FEATURE_AMERICAN_MORSE                 // American Morse mode
 // #define FEATURE_CAPACITIVE_PADDLE_PINS         // Capacitive touch paddle pins (remove bypass caps from paddle lines)

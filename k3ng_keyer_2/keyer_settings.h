@@ -26,6 +26,14 @@
 #define qlf_dah_min       100   // minimum dah duration (% of normal)
 #define qlf_dah_max       200   // maximum dah duration (% of normal)
 #define qlf_on_by_default   0   // 1 = QLF active at boot
+
+// ---------------------------------------------------------------------------
+// CMOS Super Keyer Iambic B timing — FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+// Opposite paddle is only latched after this % of the current element has elapsed.
+// Before the threshold, squeezing clears the buffer (no latch).
+// 0% = true Iambic B; 100% = Iambic A behavior.
+// ---------------------------------------------------------------------------
+#define default_cmos_super_keyer_iambic_b_timing_percent  33
 #define initial_sidetone_freq_hz   600
 #define char_send_buffer_size      50
 #define element_send_buffer_size   20

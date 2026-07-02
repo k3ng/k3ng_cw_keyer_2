@@ -160,6 +160,8 @@ struct config_struct {
   unsigned int ptt_tail_time;   // PTT tail time in ms
   uint8_t  wpm_farnsworth;      // Farnsworth inter-char WPM (0 = disabled; must be > wpm to have effect)
   uint8_t  qlf_active;          // 1 = QLF (poor fist) random timing enabled (FEATURE_QLF)
+  uint8_t  cmos_super_keyer_iambic_b_timing_on;      // 1 = CMOS Super Keyer Iambic B timing active
+  uint8_t  cmos_super_keyer_iambic_b_timing_percent; // threshold % of element elapsed before opposite paddle is latched (0-99)
 };
 
 // ---------------------------------------------------------------------------

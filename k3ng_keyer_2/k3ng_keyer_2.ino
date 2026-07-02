@@ -381,6 +381,10 @@ void setup() {
       #ifdef FEATURE_QLF
       if (configuration.qlf_active > 1) configuration.qlf_active = 0;
       #endif
+      #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+      if (configuration.cmos_super_keyer_iambic_b_timing_on > 1)    configuration.cmos_super_keyer_iambic_b_timing_on = 0;
+      if (configuration.cmos_super_keyer_iambic_b_timing_percent >= 100) configuration.cmos_super_keyer_iambic_b_timing_percent = default_cmos_super_keyer_iambic_b_timing_percent;
+      #endif
     } else {
       // First boot or magic number mismatch — write defaults
       write_settings_to_eeprom();
@@ -481,6 +485,13 @@ void initialize_state() {
   #endif
   #ifdef FEATURE_QLF
   configuration.qlf_active         = qlf_on_by_default;
+  #endif
+  #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+  configuration.cmos_super_keyer_iambic_b_timing_on      = 0;
+  configuration.cmos_super_keyer_iambic_b_timing_percent = default_cmos_super_keyer_iambic_b_timing_percent;
+  #ifdef OPTION_CMOS_SUPER_KEYER_IAMBIC_B_TIMING_ON_BY_DEFAULT
+  configuration.cmos_super_keyer_iambic_b_timing_on      = 1;
+  #endif
   #endif
 
   // CW scheduler defaults
@@ -1098,10 +1109,34 @@ void check_paddles() {
       #endif
 
     } else {
-      // Scheduler is busy — latch the opposite paddle for iambic squeeze
-      // Iambic A: only latch during KEY_UP (end of element); Iambic B: latch at any time
+      // Scheduler is busy — latch the opposite paddle for iambic squeeze.
+      // Iambic A: only latch during KEY_UP (end of element); Iambic B: latch at any time.
+      // CMOS Super Keyer Iambic B: only latch after timing_percent% of the keydown has elapsed;
+      //   before that threshold, squeezing clears the buffer instead.
+
+      #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+      // Compute whether we're past the CMOS timing threshold within the current keydown
+      byte cmos_past_threshold = 1;  // default: allow latching (KEY_UP or feature off)
+      if (configuration.cmos_super_keyer_iambic_b_timing_on &&
+          (cw_scheduler.cw_scheduler_state == KEY_DOWN) &&
+          (cw_scheduler.key_scheduler_keydown_ms > 0)) {
+        unsigned long elapsed = millis() -
+          (cw_scheduler.next_key_scheduler_transition_time - cw_scheduler.key_scheduler_keydown_ms);
+        byte pct = (byte)((elapsed * 100UL) / cw_scheduler.key_scheduler_keydown_ms);
+        cmos_past_threshold = (pct >= configuration.cmos_super_keyer_iambic_b_timing_percent);
+        if (!cmos_past_threshold && (left == LOW) && (right == LOW)) {
+          dit_buffer = 0;
+          dah_buffer = 0;
+        }
+      }
+      #endif
+
       if ((configuration.keyer_mode == IAMBIC_B) ||
           ((configuration.keyer_mode == IAMBIC_A) && (cw_scheduler.cw_scheduler_state == KEY_UP))) {
+
+        #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+        if (!cmos_past_threshold) goto cmos_skip_latch;
+        #endif
 
         if (configuration.paddle_mode == PADDLE_NORMAL) {
           if ((left  == LOW) && (cw_scheduler.currently_sending_element == THREE_UNITS_KEY_DOWN_1_UNIT_KEY_UP)) {
@@ -1118,6 +1153,10 @@ void check_paddles() {
             dit_buffer = 1;
           }
         }
+
+        #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+        cmos_skip_latch: ;
+        #endif
 
       }
     }
@@ -1412,6 +1451,13 @@ void serial_status() {
   else
     primary_serial_port->println(F("Disabled"));
   #endif
+  #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+  primary_serial_port->print(F("CMOS Super Keyer: "));
+  primary_serial_port->print(configuration.cmos_super_keyer_iambic_b_timing_on ? F("On") : F("Off"));
+  primary_serial_port->print(F(" ("));
+  primary_serial_port->print(configuration.cmos_super_keyer_iambic_b_timing_percent);
+  primary_serial_port->println(F("%)"));
+  #endif
 
   #ifdef FEATURE_PADDLE_ECHO
   primary_serial_port->print(F("Paddle echo: "));
@@ -1495,6 +1541,10 @@ void print_serial_help() {
   #endif
   #ifdef FEATURE_QLF
   primary_serial_port->println(F("\\{\t\tToggle QLF (poor fist) mode"));
+  #endif
+  #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+  primary_serial_port->println(F("\\&\t\tToggle CMOS Super Keyer Iambic B timing"));
+  primary_serial_port->println(F("\\%##\t\tSet CMOS Super Keyer timing threshold % (0-99)"));
   #endif
   primary_serial_port->println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
@@ -1714,6 +1764,25 @@ void process_cli_command(char cmd) {
       primary_serial_port->print(F("QLF: O"));
       primary_serial_port->println(configuration.qlf_active ? F("n") : F("ff"));
       break;
+    #endif
+
+    #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
+    case '&':
+      configuration.cmos_super_keyer_iambic_b_timing_on = !configuration.cmos_super_keyer_iambic_b_timing_on;
+      config_dirty = 1;
+      primary_serial_port->print(F("CMOS Super Keyer: O"));
+      primary_serial_port->println(configuration.cmos_super_keyer_iambic_b_timing_on ? F("n") : F("ff"));
+      break;
+    case '%': {
+      int new_pct = serial_get_number_input(1, 0, 99);
+      if (new_pct >= 0) {
+        configuration.cmos_super_keyer_iambic_b_timing_percent = (uint8_t)new_pct;
+        config_dirty = 1;
+        primary_serial_port->print(F("CMOS %: "));
+        primary_serial_port->println(configuration.cmos_super_keyer_iambic_b_timing_percent);
+      }
+      break;
+    }
     #endif
 
     // Not yet implemented — stubs matching v1 command letters
