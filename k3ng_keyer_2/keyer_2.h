@@ -163,6 +163,7 @@ struct config_struct {
   uint8_t  cmos_super_keyer_iambic_b_timing_on;      // 1 = CMOS Super Keyer Iambic B timing active
   uint8_t  cmos_super_keyer_iambic_b_timing_percent; // threshold % of element elapsed before opposite paddle is latched (0-99)
   unsigned int dah_to_dit_ratio;                     // dah duration as integer * 100 (300 = 3:1, 250 = 2.5:1)
+  uint8_t  dynamic_dah_to_dit_ratio_active;          // 1 = auto-adjust ratio with WPM (FEATURE_DYNAMIC_DAH_TO_DIT_RATIO)
 };
 
 // ---------------------------------------------------------------------------
