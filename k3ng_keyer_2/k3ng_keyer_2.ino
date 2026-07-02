@@ -378,6 +378,9 @@ void setup() {
       #ifdef FEATURE_FARNSWORTH
       if (configuration.wpm_farnsworth > wpm_limit_high) configuration.wpm_farnsworth = 0;
       #endif
+      #ifdef FEATURE_QLF
+      if (configuration.qlf_active > 1) configuration.qlf_active = 0;
+      #endif
     } else {
       // First boot or magic number mismatch — write defaults
       write_settings_to_eeprom();
@@ -475,6 +478,9 @@ void initialize_state() {
   configuration.ptt_tail_time      = initial_ptt_tail_time_ms;
   #ifdef FEATURE_FARNSWORTH
   configuration.wpm_farnsworth     = 0;
+  #endif
+  #ifdef FEATURE_QLF
+  configuration.qlf_active         = qlf_on_by_default;
   #endif
 
   // CW scheduler defaults
@@ -1395,6 +1401,10 @@ void serial_status() {
   primary_serial_port->print(F("Sidetone switch: "));
   primary_serial_port->println(digitalRead(SIDETONE_SWITCH) == HIGH ? F("On") : F("Off"));
   #endif
+  #ifdef FEATURE_QLF
+  primary_serial_port->print(F("QLF: "));
+  primary_serial_port->println(configuration.qlf_active ? F("On") : F("Off"));
+  #endif
   #ifdef FEATURE_FARNSWORTH
   primary_serial_port->print(F("Farnsworth: "));
   if (configuration.wpm_farnsworth > 0)
@@ -1482,6 +1492,9 @@ void print_serial_help() {
   #endif
   #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
   primary_serial_port->println(F("\\X#\t\tSwitch active TX line (1-6)"));
+  #endif
+  #ifdef FEATURE_QLF
+  primary_serial_port->println(F("\\{\t\tToggle QLF (poor fist) mode"));
   #endif
   primary_serial_port->println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
@@ -1693,6 +1706,15 @@ void process_cli_command(char cmd) {
         setup();
       #endif
       break;
+
+    #ifdef FEATURE_QLF
+    case '{':
+      configuration.qlf_active = !configuration.qlf_active;
+      config_dirty = 1;
+      primary_serial_port->print(F("QLF: O"));
+      primary_serial_port->println(configuration.qlf_active ? F("n") : F("ff"));
+      break;
+    #endif
 
     // Not yet implemented — stubs matching v1 command letters
     case 'C': // Single paddle

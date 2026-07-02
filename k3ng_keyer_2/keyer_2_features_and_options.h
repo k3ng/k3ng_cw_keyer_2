@@ -69,7 +69,7 @@
 // #define FEATURE_ALPHABET_SEND_PRACTICE         // Command mode S: alphabet practice (by Ryan, KC2ZWM)
 // #define FEATURE_COMMAND_MODE_PROGRESSIVE_5_CHAR_ECHO_PRACTICE  // Command mode U
 // #define FEATURE_COMMAND_MODE_ENHANCED_CMD_ACKNOWLEDGEMENT
-// #define FEATURE_QLF                            // QLF (poor fist) mode
+#define FEATURE_QLF                            // QLF (poor fist) mode
 // #define FEATURE_HELL                           // Hellschreiber mode
 // #define FEATURE_AMERICAN_MORSE                 // American Morse mode
 // #define FEATURE_CAPACITIVE_PADDLE_PINS         // Capacitive touch paddle pins (remove bypass caps from paddle lines)

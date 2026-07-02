@@ -376,13 +376,25 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
         schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, 0, dit_ms / 2, configuration_ptr);
         break;
 
-      case ONE_UNIT_KEY_DOWN_1_UNIT_KEY_UP:          // dit
-        schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, dit_ms, dit_ms, configuration_ptr);
+      case ONE_UNIT_KEY_DOWN_1_UNIT_KEY_UP: {        // dit
+        unsigned int dn = dit_ms;
+        #ifdef FEATURE_QLF
+        if (configuration_ptr->qlf_active)
+          dn = (unsigned int)((long)dit_ms * random(qlf_dit_min, qlf_dit_max + 1) / 100L);
+        #endif
+        schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, dn, dit_ms, configuration_ptr);
         break;
+      }
 
-      case THREE_UNITS_KEY_DOWN_1_UNIT_KEY_UP:       // dah
-        schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, 3 * dit_ms, dit_ms, configuration_ptr);
+      case THREE_UNITS_KEY_DOWN_1_UNIT_KEY_UP: {    // dah
+        unsigned int dn = 3 * dit_ms;
+        #ifdef FEATURE_QLF
+        if (configuration_ptr->qlf_active)
+          dn = (unsigned int)((long)(3 * dit_ms) * random(qlf_dah_min, qlf_dah_max + 1) / 100L);
+        #endif
+        schedule_cw_keydown_keyup(cw_scheduler_ptr, tx_ptt_ptr, dn, dit_ms, configuration_ptr);
         break;
+      }
 
       case KEY_UP_LETTERSPACE_MINUS_1: {
         // Full letter space is 3 dits; minus 1 because the last element already had 1 dit of keyup

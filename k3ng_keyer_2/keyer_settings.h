@@ -16,6 +16,16 @@
 #define wpm_limit_low               5    // minimum WPM (rotary encoder and speed_change clamp)
 #define wpm_limit_high             99    // maximum WPM
 #define farnsworth_timing_calibration  1.15  // ARRL Farnsworth inter-char timing correction factor
+
+// ---------------------------------------------------------------------------
+// QLF ("send with your left foot") — FEATURE_QLF
+// Random multipliers applied to dit/dah keydown durations (percent of normal).
+// ---------------------------------------------------------------------------
+#define qlf_dit_min        75   // minimum dit duration (% of normal)
+#define qlf_dit_max       125   // maximum dit duration (% of normal)
+#define qlf_dah_min       100   // minimum dah duration (% of normal)
+#define qlf_dah_max       200   // maximum dah duration (% of normal)
+#define qlf_on_by_default   0   // 1 = QLF active at boot
 #define initial_sidetone_freq_hz   600
 #define char_send_buffer_size      50
 #define element_send_buffer_size   20
