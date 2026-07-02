@@ -59,7 +59,6 @@
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
 // #define FEATURE_AUTOSPACE                      // Automatic character spacing
 
-// #define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears the buffer if no paddle activity
 // #define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 // #define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO       // Dynamically adjust dah-to-dit ratio
 // #define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
