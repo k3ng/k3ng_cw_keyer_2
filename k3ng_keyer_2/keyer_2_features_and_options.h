@@ -43,6 +43,8 @@
 #define FEATURE_ADDITIONAL_TX_AND_PTT_PINS            // Additional TX key lines 2-6 and PTT lines 2-6; \X# CLI command
 // #define FEATURE_ROTARY_ENCODER                 // Rotary encoder speed control
 #define FEATURE_FARNSWORTH                     // Farnsworth sending speed
+#define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
+#define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears TX if paddle stuck > 100 consecutive dits or dahs
 
 // #define DEBUG_WINKEY_EMULATION             // Verbose Winkey debug output on DEBUG_WINKEY_PORT
 // #define DEBUG_WINKEY_PORT       Serial3    // Serial port for Winkey debug output
@@ -53,7 +55,7 @@
 // *** Not implemented yet ***
 
 // --- Features ---
-#define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
+
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
 // #define FEATURE_AUTOSPACE                      // Automatic character spacing
 

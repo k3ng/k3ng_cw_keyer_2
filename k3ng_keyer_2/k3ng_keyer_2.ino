@@ -985,6 +985,10 @@ void check_paddles() {
   static byte dit_buffer = 0;   // 1 = dit has been latched while a dah was sending
   static byte dah_buffer = 0;   // 1 = dah has been latched while a dit was sending
   static byte last_sent  = 0;   // DIT or DAH — used for iambic squeeze suppression
+  #ifdef FEATURE_DEAD_OP_WATCHDOG
+  static unsigned int dit_counter = 0;  // consecutive dits sent; reset on any dah
+  static unsigned int dah_counter = 0;  // consecutive dahs sent; reset on any dit
+  #endif
 
   byte left  = digitalRead(paddle_left);
   byte right = digitalRead(paddle_right);
@@ -1027,11 +1031,20 @@ void check_paddles() {
       #define PADDLE_ECHO_DAH() do { if (paddle_echo_active) { paddle_echo_buffer = paddle_echo_buffer * 10 + 2; paddle_echo_buffer_decode_time = millis() + _pe_dit_ms * 5; } } while(0)
       #endif
 
+      #ifdef FEATURE_DEAD_OP_WATCHDOG
+      #define DOW_DIT() do { dit_counter++; dah_counter = 0; } while(0)
+      #define DOW_DAH() do { dah_counter++; dit_counter = 0; } while(0)
+      #else
+      #define DOW_DIT() do {} while(0)
+      #define DOW_DAH() do {} while(0)
+      #endif
+
       if (configuration.paddle_mode == PADDLE_NORMAL) {
         if ((left == LOW) || (dit_buffer && (last_sent == DAH))) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
           dit_buffer = 0;
           last_sent  = DIT;
+          DOW_DIT();
           #ifdef FEATURE_PADDLE_ECHO
           PADDLE_ECHO_DIT();
           #endif
@@ -1040,6 +1053,7 @@ void check_paddles() {
           send_dah(&cw_scheduler, MANUAL_SENDING);
           dah_buffer = 0;
           last_sent  = DAH;
+          DOW_DAH();
           #ifdef FEATURE_PADDLE_ECHO
           PADDLE_ECHO_DAH();
           #endif
@@ -1050,6 +1064,7 @@ void check_paddles() {
           send_dah(&cw_scheduler, MANUAL_SENDING);
           dah_buffer = 0;
           last_sent  = DAH;
+          DOW_DAH();
           #ifdef FEATURE_PADDLE_ECHO
           PADDLE_ECHO_DAH();
           #endif
@@ -1058,11 +1073,15 @@ void check_paddles() {
           send_dit(&cw_scheduler, MANUAL_SENDING);
           dit_buffer = 0;
           last_sent  = DIT;
+          DOW_DIT();
           #ifdef FEATURE_PADDLE_ECHO
           PADDLE_ECHO_DIT();
           #endif
         }
       }
+
+      #undef DOW_DIT
+      #undef DOW_DAH
 
       #ifdef FEATURE_PADDLE_ECHO
       #undef PADDLE_ECHO_DIT
@@ -1128,6 +1147,9 @@ void check_paddles() {
           schedule_cw_keydown_keyup(&cw_scheduler, &tx_ptt, REQUEST_KEY_UP, REQUEST_KEY_UP, &configuration);
         } else if ((cw_scheduler.cw_scheduler_state == IDLE) && (left == LOW)) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
+          #ifdef FEATURE_DEAD_OP_WATCHDOG
+          dit_counter++; dah_counter = 0;
+          #endif
           #ifdef FEATURE_PADDLE_ECHO
           { if (paddle_echo_active) { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * 3; } }
           #endif
@@ -1145,6 +1167,9 @@ void check_paddles() {
           schedule_cw_keydown_keyup(&cw_scheduler, &tx_ptt, REQUEST_KEY_UP, REQUEST_KEY_UP, &configuration);
         } else if ((cw_scheduler.cw_scheduler_state == IDLE) && (right == LOW)) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
+          #ifdef FEATURE_DEAD_OP_WATCHDOG
+          dit_counter++; dah_counter = 0;
+          #endif
           #ifdef FEATURE_PADDLE_ECHO
           { if (paddle_echo_active) { unsigned long _d = 1200UL / configuration.wpm; paddle_echo_buffer = paddle_echo_buffer * 10 + 1; paddle_echo_buffer_decode_time = millis() + _d * 3; } }
           #endif
@@ -1152,6 +1177,13 @@ void check_paddles() {
       }
     }
   }
+
+  // Dead-op watchdog: if paddle appears stuck (100+ consecutive same elements), kill TX
+  #ifdef FEATURE_DEAD_OP_WATCHDOG
+  if ((dit_counter > 100) || (dah_counter > 100)) {
+    tx_ptt.cw_tx_enabled = 0;
+  }
+  #endif
 
 }
 
