@@ -77,6 +77,16 @@
 #define initial_command_mode_speed_wpm          20    // default command mode speed (for future \M command)
 
 // ---------------------------------------------------------------------------
+// TX Sequencer (FEATURE_SEQUENCER)
+// ---------------------------------------------------------------------------
+// Logic level used to ASSERT and DEASSERT each sequencer output pin.
+// Set sequencer_pins_active_state = LOW for active-low relay drivers.
+// NOTE: configure ptt_active_to_sequencer_active_time[] ≤ ptt_lead_time_ms
+// so all sequencer pins assert before the CW key line goes active.
+#define sequencer_pins_active_state    HIGH
+#define sequencer_pins_inactive_state  LOW
+
+// ---------------------------------------------------------------------------
 // CW memory storage (FEATURE_MEMORIES)
 // ---------------------------------------------------------------------------
 // Number of memories stored in EEPROM.  Maps to buttons 1, 2, 3 on the

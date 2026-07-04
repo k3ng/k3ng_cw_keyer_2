@@ -157,6 +157,16 @@ byte          mem_prog_macro_flag    = 0;
 #endif
 #endif // FEATURE_MEMORIES
 
+#ifdef FEATURE_SEQUENCER
+unsigned long sequencer_ptt_activation_time = 0;  // millis() when PTT was last asserted; 0 = PTT inactive
+unsigned long sequencer_ptt_inactive_time   = 0;  // millis() when PTT was last de-asserted; 0 = no pending de-assert
+byte sequencer_1_active = 0;
+byte sequencer_2_active = 0;
+byte sequencer_3_active = 0;
+byte sequencer_4_active = 0;
+byte sequencer_5_active = 0;
+#endif
+
 // ---------------------------------------------------------------------------
 // forward declarations for functions defined below
 // ---------------------------------------------------------------------------
@@ -183,6 +193,9 @@ void service_straight_key();
 void write_settings_to_eeprom();
 bool read_settings_from_eeprom();
 void check_for_dirty_configuration();
+#ifdef FEATURE_SEQUENCER
+void service_sequencer();
+#endif
 void check_paddles();
 void cw_key(struct tx_ptt_struct *tx_ptt_ptr, int state, config_struct *configuration_ptr);
 void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key);
@@ -287,6 +300,15 @@ void setup() {
   if (ptt_tx_6)      { digitalWrite(ptt_tx_6,      LOW); }
   #endif
   noTone(sidetone_line);
+
+  #ifdef FEATURE_SEQUENCER
+  // Sequencer output pins — drive to inactive state before any PTT activity
+  if (sequencer_1_pin) { pinMode(sequencer_1_pin, OUTPUT); digitalWrite(sequencer_1_pin, sequencer_pins_inactive_state); }
+  if (sequencer_2_pin) { pinMode(sequencer_2_pin, OUTPUT); digitalWrite(sequencer_2_pin, sequencer_pins_inactive_state); }
+  if (sequencer_3_pin) { pinMode(sequencer_3_pin, OUTPUT); digitalWrite(sequencer_3_pin, sequencer_pins_inactive_state); }
+  if (sequencer_4_pin) { pinMode(sequencer_4_pin, OUTPUT); digitalWrite(sequencer_4_pin, sequencer_pins_inactive_state); }
+  if (sequencer_5_pin) { pinMode(sequencer_5_pin, OUTPUT); digitalWrite(sequencer_5_pin, sequencer_pins_inactive_state); }
+  #endif
 
   // Debug serial port for Winkey tracing (must come before other serial init)
   #if defined(DEBUG_WINKEY_EMULATION) && defined(DEBUG_WINKEY_PORT)
@@ -448,6 +470,9 @@ void loop() {
   check_paddles();
   service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
   check_ptt_tail();
+  #ifdef FEATURE_SEQUENCER
+  service_sequencer();
+  #endif
   service_serial();
   service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
   service_sound(SERVICE, 0, 0);
@@ -524,6 +549,12 @@ void initialize_state() {
   configuration.dah_to_dit_ratio = initial_dah_to_dit_ratio;
   #ifdef FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
   configuration.dynamic_dah_to_dit_ratio_active = 1;
+  #endif
+  #ifdef FEATURE_SEQUENCER
+  for (byte _si = 0; _si < 5; _si++) {
+    configuration.ptt_active_to_sequencer_active_time[_si]   = 0;
+    configuration.ptt_inactive_to_sequencer_inactive_time[_si] = 0;
+  }
   #endif
 
   // CW scheduler defaults
@@ -919,12 +950,20 @@ void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key) {
     if (!tx_ptt_ptr->ptt_line_asserted) {
       digitalWrite(tx_ptt_ptr->pin_ptt, HIGH);
       tx_ptt_ptr->ptt_line_asserted = 1;
+      #ifdef FEATURE_SEQUENCER
+      sequencer_ptt_activation_time = millis();
+      sequencer_ptt_inactive_time   = 0;  // cancel any pending de-assert
+      #endif
     }
     tx_ptt_ptr->ptt_time = millis();
   } else {
     if (tx_ptt_ptr->ptt_line_asserted) {
       digitalWrite(tx_ptt_ptr->pin_ptt, LOW);
       tx_ptt_ptr->ptt_line_asserted = 0;
+      #ifdef FEATURE_SEQUENCER
+      sequencer_ptt_inactive_time   = millis();
+      sequencer_ptt_activation_time = 0;  // stop activation polling
+      #endif
     }
   }
 
@@ -1092,6 +1131,74 @@ void check_ptt_tail() {
   }
 
 }
+
+// ---------------------------------------------------------------------------
+
+#ifdef FEATURE_SEQUENCER
+// service_sequencer(): call from loop() every iteration.
+//
+// Non-blocking sequencer pin driver.  Two phases:
+//
+//   Activation: after PTT asserts, each pin goes active when its
+//     ptt_active_to_sequencer_active_time[n] ms has elapsed.
+//     Set ptt_lead_time >= max(ptt_active_to_sequencer_active_time[]) so all
+//     pins assert before the CW key goes active (during PTT_LEAD_TIME_WAIT).
+//
+//   Deactivation: after PTT de-asserts, each pin goes inactive when its
+//     ptt_inactive_to_sequencer_inactive_time[n] ms has elapsed.
+//     Delay of 0 ms → pin de-asserts immediately on the next loop iteration.
+//
+// Pins set to 0 in keyer_2_pin_settings.h are skipped.
+void service_sequencer() {
+
+  unsigned long now = millis();
+
+  // ── Activation phase ──────────────────────────────────────────────────────
+  if (sequencer_ptt_activation_time) {
+    unsigned long elapsed = now - sequencer_ptt_activation_time;
+    if (sequencer_1_pin && !sequencer_1_active && elapsed >= configuration.ptt_active_to_sequencer_active_time[0]) {
+      digitalWrite(sequencer_1_pin, sequencer_pins_active_state);  sequencer_1_active = 1;
+    }
+    if (sequencer_2_pin && !sequencer_2_active && elapsed >= configuration.ptt_active_to_sequencer_active_time[1]) {
+      digitalWrite(sequencer_2_pin, sequencer_pins_active_state);  sequencer_2_active = 1;
+    }
+    if (sequencer_3_pin && !sequencer_3_active && elapsed >= configuration.ptt_active_to_sequencer_active_time[2]) {
+      digitalWrite(sequencer_3_pin, sequencer_pins_active_state);  sequencer_3_active = 1;
+    }
+    if (sequencer_4_pin && !sequencer_4_active && elapsed >= configuration.ptt_active_to_sequencer_active_time[3]) {
+      digitalWrite(sequencer_4_pin, sequencer_pins_active_state);  sequencer_4_active = 1;
+    }
+    if (sequencer_5_pin && !sequencer_5_active && elapsed >= configuration.ptt_active_to_sequencer_active_time[4]) {
+      digitalWrite(sequencer_5_pin, sequencer_pins_active_state);  sequencer_5_active = 1;
+    }
+  }
+
+  // ── Deactivation phase ────────────────────────────────────────────────────
+  if (sequencer_ptt_inactive_time) {
+    unsigned long elapsed = now - sequencer_ptt_inactive_time;
+    if (sequencer_1_pin && sequencer_1_active && elapsed >= configuration.ptt_inactive_to_sequencer_inactive_time[0]) {
+      digitalWrite(sequencer_1_pin, sequencer_pins_inactive_state);  sequencer_1_active = 0;
+    }
+    if (sequencer_2_pin && sequencer_2_active && elapsed >= configuration.ptt_inactive_to_sequencer_inactive_time[1]) {
+      digitalWrite(sequencer_2_pin, sequencer_pins_inactive_state);  sequencer_2_active = 0;
+    }
+    if (sequencer_3_pin && sequencer_3_active && elapsed >= configuration.ptt_inactive_to_sequencer_inactive_time[2]) {
+      digitalWrite(sequencer_3_pin, sequencer_pins_inactive_state);  sequencer_3_active = 0;
+    }
+    if (sequencer_4_pin && sequencer_4_active && elapsed >= configuration.ptt_inactive_to_sequencer_inactive_time[3]) {
+      digitalWrite(sequencer_4_pin, sequencer_pins_inactive_state);  sequencer_4_active = 0;
+    }
+    if (sequencer_5_pin && sequencer_5_active && elapsed >= configuration.ptt_inactive_to_sequencer_inactive_time[4]) {
+      digitalWrite(sequencer_5_pin, sequencer_pins_inactive_state);  sequencer_5_active = 0;
+    }
+    // All de-asserted → clear pending timer
+    if (!sequencer_1_active && !sequencer_2_active && !sequencer_3_active && !sequencer_4_active && !sequencer_5_active) {
+      sequencer_ptt_inactive_time = 0;
+    }
+  }
+
+}
+#endif // FEATURE_SEQUENCER
 
 // ---------------------------------------------------------------------------
 // check_paddles()
@@ -1617,6 +1724,19 @@ void serial_status() {
   primary_serial_port->println(pot_wpm_high_value);
   #endif
 
+  #ifdef FEATURE_SEQUENCER
+  primary_serial_port->println(F("Sequencer (ms):"));
+  primary_serial_port->println(F("  #  PTT->Active  PTT->Inactive"));
+  for (byte _si = 0; _si < 5; _si++) {
+    primary_serial_port->print(F("  "));
+    primary_serial_port->print(_si + 1);
+    primary_serial_port->print(F("  "));
+    primary_serial_port->print(configuration.ptt_active_to_sequencer_active_time[_si]);
+    primary_serial_port->print(F("          "));
+    primary_serial_port->println(configuration.ptt_inactive_to_sequencer_inactive_time[_si]);
+  }
+  #endif
+
   #ifdef FEATURE_MEMORIES
   primary_serial_port->println(F("Memories:"));
   for (byte m = 0; m < number_of_memories; m++) {
@@ -1686,6 +1806,10 @@ void print_serial_help() {
   #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
   primary_serial_port->println(F("\\&\t\tToggle CMOS Super Keyer Iambic B timing"));
   primary_serial_port->println(F("\\%##\t\tSet CMOS Super Keyer timing threshold % (0-99)"));
+  #endif
+  #ifdef FEATURE_SEQUENCER
+  primary_serial_port->println(F("\\<\t\tSet sequencer PTT->active delay (prompts: seq#, ms)"));
+  primary_serial_port->println(F("\\>\t\tSet sequencer PTT->inactive delay (prompts: seq#, ms)"));
   #endif
   primary_serial_port->println(F("\\?\t\tThis help"));
   #ifdef FEATURE_MEMORIES
@@ -1933,6 +2057,48 @@ void process_cli_command(char cmd) {
       break;
     }
     #endif
+
+    #ifdef FEATURE_SEQUENCER
+    case '<': {
+      // \<  →  set PTT-active to sequencer-active delay
+      // prompts: seq# (1-5), then delay in ms
+      primary_serial_port->print(F("Seq#(1-5):"));
+      int _sn = serial_get_number_input(1, 0, 6);
+      if (_sn >= 1 && _sn <= 5) {
+        primary_serial_port->print(F(" Active delay ms:"));
+        int _ms = serial_get_number_input(5, -1, 32768);
+        if (_ms >= 0) {
+          configuration.ptt_active_to_sequencer_active_time[_sn - 1] = (unsigned int)_ms;
+          config_dirty = 1;
+          primary_serial_port->print(F("Seq "));
+          primary_serial_port->print(_sn);
+          primary_serial_port->print(F(" active delay: "));
+          primary_serial_port->print(_ms);
+          primary_serial_port->println(F(" ms"));
+        }
+      }
+      break;
+    }
+    case '>': {
+      // \>  →  set PTT-inactive to sequencer-inactive delay
+      primary_serial_port->print(F("Seq#(1-5):"));
+      int _sn = serial_get_number_input(1, 0, 6);
+      if (_sn >= 1 && _sn <= 5) {
+        primary_serial_port->print(F(" Inactive delay ms:"));
+        int _ms = serial_get_number_input(5, -1, 32768);
+        if (_ms >= 0) {
+          configuration.ptt_inactive_to_sequencer_inactive_time[_sn - 1] = (unsigned int)_ms;
+          config_dirty = 1;
+          primary_serial_port->print(F("Seq "));
+          primary_serial_port->print(_sn);
+          primary_serial_port->print(F(" inactive delay: "));
+          primary_serial_port->print(_ms);
+          primary_serial_port->println(F(" ms"));
+        }
+      }
+      break;
+    }
+    #endif // FEATURE_SEQUENCER
 
     // Not yet implemented — stubs matching v1 command letters
     case 'C': // Single paddle

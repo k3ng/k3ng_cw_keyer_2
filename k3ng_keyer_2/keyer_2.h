@@ -164,6 +164,13 @@ struct config_struct {
   uint8_t  cmos_super_keyer_iambic_b_timing_percent; // threshold % of element elapsed before opposite paddle is latched (0-99)
   unsigned int dah_to_dit_ratio;                     // dah duration as integer * 100 (300 = 3:1, 250 = 2.5:1)
   uint8_t  dynamic_dah_to_dit_ratio_active;          // 1 = auto-adjust ratio with WPM (FEATURE_DYNAMIC_DAH_TO_DIT_RATIO)
+
+  #ifdef FEATURE_SEQUENCER
+  // Delay from PTT assert   → each sequencer pin asserts   (configure ≤ ptt_lead_time)
+  // Delay from PTT de-assert → each sequencer pin de-asserts
+  unsigned int ptt_active_to_sequencer_active_time[5];
+  unsigned int ptt_inactive_to_sequencer_inactive_time[5];
+  #endif
 };
 
 // ---------------------------------------------------------------------------

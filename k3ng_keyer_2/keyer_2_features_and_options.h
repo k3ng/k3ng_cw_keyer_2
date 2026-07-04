@@ -79,7 +79,7 @@
 // #define FEATURE_AMERICAN_MORSE                 // American Morse mode
 // #define FEATURE_CAPACITIVE_PADDLE_PINS         // Capacitive touch paddle pins (remove bypass caps from paddle lines)
 // #define FEATURE_PTT_INTERLOCK                  // PTT interlock input pin
-// #define FEATURE_SEQUENCER                      // TX sequencer output pins
+#define FEATURE_SEQUENCER                      // TX sequencer output pins
 // #define FEATURE_DL2SBA_BANKSWITCH              // Memory bank switching (http://dl2sba.com)
 // #define FEATURE_EEPROM_E24C1024                // External 1Mbit I2C EEPROM support
 // #define FEATURE_SD_CARD_SUPPORT                // SD card support
