@@ -4,15 +4,15 @@
 **Version:** 2-20260630  
 **License:** GNU GPL v3
 
-A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) (v1) built around a fully non-blocking CW state machine. All timing is driven by `millis()` comparisons — there are no blocking `delay()` calls anywhere in the keying path.
+A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) (v1) built around a CW state machine driven entirely by `millis()` — no `delay()` calls in the keying path.
 
 ---
 
 ## Motivation
 
-The v1 keyer accumulated a large amount of complexity over many years of feature additions, and some timing-critical paths used blocking delays that constrained the architecture. Version 2 is a clean rewrite with the following goals:
+Version 2 is a clean rewrite of v1 with the following goals:
 
-- **Non-blocking by design.** `loop()` never stalls. All CW element timing, PTT sequencing, and inter-character spacing are handled by a state machine that advances on each `loop()` call.
+- **Responsive by design.** All CW element timing, PTT sequencing, and inter-character spacing are handled by a state machine that advances on each `loop()` call.
 - **Same feature set as v1.** All major v1 features are ported or in progress. Configuration flags, CLI commands, and EEPROM layout follow v1 conventions where practical.
 - **Readable, maintainable code.** Each feature is isolated in `#ifdef FEATURE_*` blocks. The core architecture is documented inline.
 
@@ -20,7 +20,7 @@ The v1 keyer accumulated a large amount of complexity over many years of feature
 
 ## Architecture
 
-### Non-blocking CW state machine
+### CW state machine
 
 The heart of v2 is `service_cw_scheduler()`, called multiple times per `loop()` iteration:
 
@@ -31,7 +31,7 @@ loop()
   ├── check_ptt_tail()         — release PTT after tail time
   ├── service_sequencer()      — drive TX sequencer output pins
   ├── service_serial()         — process CLI and Winkey bytes
-  ├── service_memory_program() — non-blocking paddle memory entry
+  ├── service_memory_program() — paddle memory entry
   ├── service_command_mode()   — CW command mode state machine
   └── check_buttons()          — analog button array
 ```
@@ -169,7 +169,7 @@ Up to 5 output pins (`sequencer_1_pin` through `sequencer_5_pin` in `keyer_2_pin
 - **PTT→active delay** (`ptt_active_to_sequencer_active_time[]`): how long after PTT asserts before this pin asserts. Configure this ≤ `ptt_lead_time` so all pins are active before the CW key goes active.
 - **PTT→inactive delay** (`ptt_inactive_to_sequencer_inactive_time[]`): how long after PTT de-asserts before this pin de-asserts.
 
-Both phases are driven non-blockingly by `service_sequencer()` called from `loop()`.
+Both phases are driven by `service_sequencer()` called from `loop()`.
 
 ---
 

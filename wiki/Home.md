@@ -1,6 +1,6 @@
 # K3NG CW Keyer — Version 2
 
-A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) built around a fully **non-blocking CW state machine**. All timing is driven by `millis()` — there are no blocking `delay()` calls anywhere in the keying path.
+A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) built around a CW state machine driven entirely by `millis()` — no `delay()` calls in the keying path.
 
 ---
 
@@ -38,7 +38,7 @@ A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer
 - [[Compiling and Uploading|290-Compiling-and-Uploading]]
 
 ### Architecture
-- [[Architecture — Non-Blocking Design|300-Architecture]]
+- [[Architecture|300-Architecture]]
 - [[EEPROM and Settings Persistence|310-EEPROM-and-Settings]]
 
 ### Operating

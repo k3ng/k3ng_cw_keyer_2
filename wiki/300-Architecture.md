@@ -1,12 +1,8 @@
-# Architecture — Non-Blocking Design
+# Architecture
 
-## The Problem with v1
+## Design Approach
 
-The original K3NG CW Keyer accumulated blocking `delay()` calls over many years of feature additions. While functional, these made the code harder to extend and meant the Arduino was unavailable for other work during timing waits.
-
-## The v2 Approach
-
-Version 2 is built around a single invariant: **`loop()` never blocks.** Every timing decision is made by comparing `millis()` to a stored deadline, never by sleeping.
+Version 2 is built around a single invariant: **`loop()` always returns quickly.** Every timing decision is made by comparing `millis()` to a stored deadline.
 
 ## The CW State Machine
 
@@ -58,7 +54,7 @@ void loop() {
   service_straight_key();      // straight key pin
   service_paddle_echo();       // echo paddle chars to serial
   check_for_dirty_configuration(); // auto-save EEPROM after 30s
-  service_memory_program();    // non-blocking paddle memory entry
+  service_memory_program();    // paddle memory entry
   service_command_mode();      // CW command mode state machine
   check_buttons();             // analog button array
   service_cw_scheduler();      // (called again for responsiveness)
@@ -67,9 +63,9 @@ void loop() {
 
 `service_cw_scheduler()` is called three times per loop to minimize latency between a paddle hit and the start of the element.
 
-## PTT Lead Time (Non-Blocking)
+## PTT Lead Time
 
-In v1, PTT lead time was implemented with a blocking `delay()`. In v2, when a keydown is requested and PTT lead time is configured, the scheduler transitions to `PTT_LEAD_TIME_WAIT` state, asserts PTT, and stores the deadline. On the next (and subsequent) `loop()` calls, the scheduler checks whether the deadline has passed before asserting the TX key line. The loop is free to do other work during the wait.
+When a keydown is requested and PTT lead time is configured, the scheduler transitions to `PTT_LEAD_TIME_WAIT` state, asserts PTT, and stores the deadline. On the next (and subsequent) `loop()` calls, the scheduler checks whether the deadline has passed before asserting the TX key line.
 
 ## Key Data Structures
 

@@ -9,7 +9,7 @@ Set in `keyer_settings.h`:
 #define initial_ptt_lead_time_ms  10
 ```
 
-In v2 this is implemented **non-blockingly** via the `PTT_LEAD_TIME_WAIT` state in the CW scheduler — the loop continues running during the wait.
+Implemented via the `PTT_LEAD_TIME_WAIT` state in the CW scheduler.
 
 Runtime adjustment: _currently set at compile time; runtime CLI command planned._
 

@@ -8,7 +8,7 @@
 - [[Compiling and Uploading|290-Compiling-and-Uploading]]
 
 **Architecture**
-- [[Non-Blocking Design|300-Architecture]]
+- [[Architecture|300-Architecture]]
 - [[EEPROM and Settings|310-EEPROM-and-Settings]]
 
 **Operating**

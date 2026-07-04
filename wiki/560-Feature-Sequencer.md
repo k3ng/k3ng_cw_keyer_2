@@ -33,7 +33,7 @@ Each of the 5 pins has independent delays, allowing cascaded sequencing.
 
 ## Important Timing Constraint
 
-Configure `ptt_lead_time` ≥ the longest `ptt_active_to_sequencer_active_time`. This ensures all sequencer pins assert before the CW key line goes active (during the PTT lead time wait). In v2 the lead time wait is non-blocking, so `service_sequencer()` fires the pins at exactly the right moment while `loop()` continues running.
+Configure `ptt_lead_time` ≥ the longest `ptt_active_to_sequencer_active_time`. This ensures all sequencer pins assert before the CW key line goes active. `service_sequencer()` fires the pins at exactly the right moment during the PTT lead time wait.
 
 ## Hardware
 
