@@ -557,6 +557,11 @@ void initialize_state() {
   }
   #endif
 
+  #ifdef FEATURE_AUTOSPACE
+  configuration.autospace_active        = 0;
+  configuration.autospace_timing_factor = default_autospace_timing_factor;
+  #endif
+
   // CW scheduler defaults
   cw_scheduler.cw_scheduler_state          = IDLE;
   cw_scheduler.currently_sending_element   = UNDEFINED;
@@ -1682,6 +1687,12 @@ void serial_status() {
   else
     primary_serial_port->println(F("Disabled"));
   #endif
+  #ifdef FEATURE_AUTOSPACE
+  primary_serial_port->print(F("Autospace: "));
+  primary_serial_port->print(configuration.autospace_active ? F("On") : F("Off"));
+  primary_serial_port->print(F("  Factor: "));
+  primary_serial_port->println((float)configuration.autospace_timing_factor / 100.0);
+  #endif
   primary_serial_port->print(F("Dah/dit ratio: "));
   primary_serial_port->print((float)configuration.dah_to_dit_ratio / 100.0);
   #ifdef FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
@@ -1806,6 +1817,10 @@ void print_serial_help() {
   #ifdef FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING
   primary_serial_port->println(F("\\&\t\tToggle CMOS Super Keyer Iambic B timing"));
   primary_serial_port->println(F("\\%##\t\tSet CMOS Super Keyer timing threshold % (0-99)"));
+  #endif
+  #ifdef FEATURE_AUTOSPACE
+  primary_serial_port->println(F("\\z\t\tToggle autospace on/off"));
+  primary_serial_port->println(F("\\Z###\t\tSet autospace timing factor (10-999; 200=2.0 dits)"));
   #endif
   #ifdef FEATURE_SEQUENCER
   primary_serial_port->println(F("\\<\t\tSet sequencer PTT->active delay (prompts: seq#, ms)"));
@@ -2155,9 +2170,29 @@ void process_cli_command(char cmd) {
       break;
     }
     #endif // FEATURE_ADDITIONAL_TX_AND_PTT_PINS
-    case 'Z': // Autospace
-      primary_serial_port->println(F("Not implemented yet"));
+    #ifdef FEATURE_AUTOSPACE
+    case 'z':   // \z — toggle autospace on/off (matches v1)
+      configuration.autospace_active = !configuration.autospace_active;
+      config_dirty = 1;
+      primary_serial_port->print(F("Autospace: O"));
+      primary_serial_port->println(configuration.autospace_active ? F("n") : F("ff"));
       break;
+    case 'Z': { // \Z### — set autospace timing factor (integer * 100; e.g. 200 = 2.0 dits)
+      int new_af = serial_get_number_input(3, 9, 1001);
+      if (new_af > 0) {
+        configuration.autospace_timing_factor = (unsigned int)new_af;
+        config_dirty = 1;
+        primary_serial_port->print(F("Autospace factor: "));
+        primary_serial_port->println((float)configuration.autospace_timing_factor / 100.0);
+      }
+      break;
+    }
+    #else
+    case 'z':
+    case 'Z': // Autospace (enable FEATURE_AUTOSPACE)
+      primary_serial_port->println(F("FEATURE_AUTOSPACE not enabled"));
+      break;
+    #endif
 
     default:
       primary_serial_port->print(F("Unknown command: \\"));

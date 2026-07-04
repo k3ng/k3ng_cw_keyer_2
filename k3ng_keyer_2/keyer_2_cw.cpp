@@ -342,6 +342,27 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
 
     case KEY_UP:
       if (millis() >= cw_scheduler_ptr->next_key_scheduler_transition_time) {
+
+        #ifdef FEATURE_AUTOSPACE
+        // Autospace: after a manually-keyed dit or dah, if the operator has not yet
+        // queued another element, extend the KEY_UP by autospace_timing_factor dits.
+        // This brings total inter-character space to 1 + autospace_timing_factor dits
+        // (standard letterspace at the default of 2.0 extra = 3 dits total).
+        if (!cw_scheduler_ptr->autospace_applied &&
+            configuration_ptr->autospace_active &&
+            cw_scheduler_ptr->current_sending_type == MANUAL_SENDING &&
+            (cw_scheduler_ptr->currently_sending_element == ONE_UNIT_KEY_DOWN_1_UNIT_KEY_UP ||
+             cw_scheduler_ptr->currently_sending_element == THREE_UNITS_KEY_DOWN_1_UNIT_KEY_UP) &&
+            cw_scheduler_ptr->element_send_buffer_bytes == 0) {
+          unsigned int dit_ms = 1200 / configuration_ptr->wpm;
+          cw_scheduler_ptr->next_key_scheduler_transition_time =
+              millis() + (unsigned int)((unsigned long)dit_ms * configuration_ptr->autospace_timing_factor / 100UL);
+          cw_scheduler_ptr->autospace_applied = 1;
+          break;
+        }
+        cw_scheduler_ptr->autospace_applied = 0;
+        #endif
+
         cw_scheduler_ptr->cw_scheduler_state = IDLE;
         // The letterspace/wordspace element is always the last element of a char.
         // When its KEY_UP timer expires, the char is fully keyed — signal the echo layer.
@@ -377,6 +398,9 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
         break;
 
       case ONE_UNIT_KEY_DOWN_1_UNIT_KEY_UP: {        // dit
+        #ifdef FEATURE_AUTOSPACE
+        cw_scheduler_ptr->autospace_applied = 0;
+        #endif
         unsigned int dn = dit_ms;
         #ifdef FEATURE_QLF
         if (configuration_ptr->qlf_active)
@@ -387,6 +411,9 @@ void service_cw_scheduler(cw_scheduler_struct *cw_scheduler_ptr, tx_ptt_struct *
       }
 
       case THREE_UNITS_KEY_DOWN_1_UNIT_KEY_UP: {    // dah
+        #ifdef FEATURE_AUTOSPACE
+        cw_scheduler_ptr->autospace_applied = 0;
+        #endif
         unsigned int dn = (unsigned int)((long)dit_ms * configuration_ptr->dah_to_dit_ratio / 100L);
         #ifdef FEATURE_QLF
         if (configuration_ptr->qlf_active)

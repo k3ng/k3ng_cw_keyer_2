@@ -49,6 +49,8 @@ TX: Enabled
 PTT lead: 10 ms
 PTT tail: 10 ms
 Wordspace: 7
+Farnsworth: Disabled
+Autospace: Off  Factor: 2.00
 Dah/dit ratio: 3.00 (dynamic)
 Sequencer (ms):
   #  PTT->Active  PTT->Inactive

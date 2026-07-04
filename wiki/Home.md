@@ -16,6 +16,7 @@ A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer
 - CW command mode (change settings via paddle)
 - Speed potentiometer and rotary encoder
 - Farnsworth timing
+- Autospace (automatic letterspace insertion on paddle sending)
 - CMOS Super Keyer Iambic B timing
 - Dynamic dah/dit ratio
 - Dead Operator Watchdog

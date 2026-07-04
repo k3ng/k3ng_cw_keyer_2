@@ -26,6 +26,8 @@ Press **ESC** at any time to clear the send buffer and stop sending.
 | `\F####` | Set sidetone frequency in Hz (e.g. `\F600`) | — |
 | `\Y#` | Set wordspace in dit units (1–9, default 7) | — |
 | `\M###` | Set Farnsworth inter-character WPM (0 = disable) | `FEATURE_FARNSWORTH` |
+| `\z` | Toggle autospace on/off | `FEATURE_AUTOSPACE` |
+| `\Z###` | Set autospace timing factor × 100 (e.g. `\Z200` = 2.0 dits) | `FEATURE_AUTOSPACE` |
 | `\J###` | Set dah/dit ratio × 100 (300 = 3:1, range 150–810) | `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` |
 | `\^` | Toggle dynamic dah/dit ratio auto-adjustment | `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` |
 | `\&` | Toggle CMOS Super Keyer Iambic B timing on/off | `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` |

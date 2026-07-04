@@ -91,6 +91,7 @@ All features are compile-time switches in `keyer_2_features_and_options.h`.
 | `FEATURE_BEACON_SETTING` | `\_` CLI command persists beacon-on-boot setting to EEPROM |
 | `FEATURE_ADDITIONAL_TX_AND_PTT_PINS` | Up to 6 TX key lines and PTT lines; `\X#` to select |
 | `FEATURE_FARNSWORTH` | Farnsworth inter-character spacing (`\M###`) |
+| `FEATURE_AUTOSPACE` | Auto-insert letterspace after paddle elements when operator pauses (`\z` toggle, `\Z###` factor) |
 | `FEATURE_SIDETONE_SWITCH` | External toggle switch for sidetone on/off |
 | `FEATURE_DEAD_OP_WATCHDOG` | Clears TX if paddle is stuck for > 100 consecutive elements |
 | `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` | CMOS Super Keyer Iambic B timing |
@@ -103,7 +104,6 @@ All features are compile-time switches in `keyer_2_features_and_options.h`.
 ### Planned / not yet ported
 
 - `FEATURE_CW_DECODER`
-- `FEATURE_AUTOSPACE`
 - LCD display features
 - PS/2 and USB keyboard input
 - SO2R base features

@@ -171,6 +171,11 @@ struct config_struct {
   unsigned int ptt_active_to_sequencer_active_time[5];
   unsigned int ptt_inactive_to_sequencer_inactive_time[5];
   #endif
+
+  #ifdef FEATURE_AUTOSPACE
+  uint8_t      autospace_active;          // 1 = autospace on
+  unsigned int autospace_timing_factor;   // extra dits × 100 (200 = 2.0 dits)
+  #endif
 };
 
 // ---------------------------------------------------------------------------
@@ -206,6 +211,10 @@ struct cw_scheduler_struct {
 
   #ifdef FEATURE_MEMORY_MACROS
   unsigned long macro_delay_until;  // millis() deadline for \D / \T delays; 0 = none
+  #endif
+
+  #ifdef FEATURE_AUTOSPACE
+  uint8_t  autospace_applied;  // 1 = autospace extension already applied for current element
   #endif
 };
 

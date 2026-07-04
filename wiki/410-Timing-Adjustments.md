@@ -56,6 +56,29 @@ With `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, the ratio can auto-adjust with WPM (`\^
 - CLI: `\F####` (e.g. `\F700` for 700 Hz)
 - Range: limited by Arduino `tone()` function (roughly 31–65535 Hz; practical range 200–2000 Hz)
 
+## Autospace
+
+Autospace automatically inserts a letterspace pause after each manually-keyed dit or dah when the operator pauses — that is, when neither paddle is pressed after the element finishes. This cleans up sending by ensuring clean character boundaries even when the operator's timing is slightly loose.
+
+Requires `FEATURE_AUTOSPACE`.
+
+**How it works:** After a dit or dah completes its normal 1-dit inter-element space, the scheduler checks whether another element has been queued. If not, it waits an additional `autospace_timing_factor` dits before advancing. At the default of 2.0, total inter-character space becomes 3 dits — the standard CW letterspace.
+
+If the operator presses the next paddle during the autospace window, the extra wait is skipped and sending continues normally. There is no effect on automatic sending (memories, serial keyboard).
+
+| Setting | Value |
+|---------|-------|
+| Default | Off |
+| CLI toggle | `\z` |
+| CLI factor | `\Z###` (integer × 100; e.g. `\Z200` = 2.0 dits) |
+| Default factor | 200 (2.0 dits extra) |
+| Factor range | 10–999 |
+
+`keyer_settings.h` default:
+```cpp
+#define default_autospace_timing_factor  200   // 2.0 dit units extra
+```
+
 ## TX/RX Sequencer Timing
 
 See [[TX/RX Sequencer|560-Feature-Sequencer]] for PTT-to-sequencer activation and de-activation timing.

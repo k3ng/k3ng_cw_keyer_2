@@ -77,6 +77,15 @@
 #define initial_command_mode_speed_wpm          20    // default command mode speed (for future \M command)
 
 // ---------------------------------------------------------------------------
+// Autospace (FEATURE_AUTOSPACE)
+// ---------------------------------------------------------------------------
+// Extra inter-element space added after each manually-keyed dit or dah when
+// no paddle is pressed, expressed as a multiplier * 100 (200 = 2.0 dit units).
+// Total inter-character space = 1 (normal inter-element) + autospace_timing_factor dits.
+// At the default of 2.0 this gives 3 dits = standard letterspace.
+#define default_autospace_timing_factor  200   // 2.0 dit units extra (stored as int * 100)
+
+// ---------------------------------------------------------------------------
 // TX Sequencer (FEATURE_SEQUENCER)
 // ---------------------------------------------------------------------------
 // Logic level used to ASSERT and DEASSERT each sequencer output pin.

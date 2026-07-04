@@ -64,7 +64,7 @@
 // --- Features ---
 
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
-// #define FEATURE_AUTOSPACE                      // Automatic character spacing
+#define FEATURE_AUTOSPACE                      // Automatic character spacing
 
 
 
