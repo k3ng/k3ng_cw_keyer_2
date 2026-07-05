@@ -63,13 +63,18 @@ No function here blocks. As features are ported, new service calls are added to 
 
 ```
 k3ng_cw_keyer-2/
+├── K3NG_CW_KEYER_V2.md                   This document
+├── README.md                              Current-state overview and feature reference
+├── wiki/                                  Full user documentation (GitHub wiki source)
 └── k3ng_keyer_2/
     ├── k3ng_keyer_2.ino                  Main sketch: setup(), loop(), hardware functions
     ├── keyer_2.h                          Main header: enums, structs, constants
     ├── keyer_2_features_and_options.h     Feature and option compile-time switches
     ├── keyer_2_pin_settings.h             Pin assignments
-    ├── keyer_2_cw.h                       CW scheduler header
-    └── keyer_2_cw.cpp                     CW scheduler implementation
+    ├── keyer_settings.h                   Tunable defaults (WPM, timing, memory count, etc.)
+    ├── keyer_2_cw.h / keyer_2_cw.cpp      CW scheduler (state machine, element/char buffers)
+    ├── keyer_2_serial.h                   Serial port abstraction for multi-port support
+    └── keyer_2_winkey.h / keyer_2_winkey.cpp   Winkey v2 protocol emulation
 ```
 
 ### File Descriptions
@@ -78,13 +83,22 @@ k3ng_cw_keyer-2/
 The master header included by all other files. Defines all enums (`key_scheduler_type`, `sending_type`, `element_buffer_type`), structs (`config_struct`, `cw_scheduler_struct`, `tx_ptt_struct`), and constants. Also declares the hardware function prototypes (`cw_key`, `ptt`, `service_sound`) that are implemented in the `.ino` but called from `keyer_2_cw.cpp`.
 
 **`keyer_2_features_and_options.h`**  
-The migration roadmap (see below). Compile-time `#define` switches for all optional features and behavioral options, mirroring `keyer_features_and_options.h` from v1. Anything above the `// *** Not implemented yet ***` line is active. Everything below it is commented out and waiting to be ported.
+The migration roadmap (see below). Compile-time `#define` switches for all optional features and behavioral options, mirroring `keyer_features_and_options.h` from v1. Anything above the `// *** Not ported from v1 yet ***` line has a working implementation somewhere in the codebase — some are commented out there too, either because they need matching hardware (e.g. `FEATURE_POTENTIOMETER`) or because they were deliberately disabled to isolate another feature during testing. Everything below that line has no implementation yet.
 
 **`keyer_2_pin_settings.h`**  
-All hardware pin assignments. Mirrors `keyer_pin_settings.h` from v1. Pins actively used in the current v2 code are above the `// *** Not implemented yet ***` line. Unused pins are below it. As features are ported, their pins move up.
+All hardware pin assignments. Mirrors `keyer_pin_settings.h` from v1. Core pins are always active; pins for optional features are gated by that feature's `#ifdef` so they only need to be configured when the feature is enabled.
+
+**`keyer_settings.h`**  
+Tunable defaults that aren't pin assignments: WPM limits, timing constants, memory count, EEPROM layout, per-feature thresholds (e.g. `capacitance_threshold`, `qlf_dit_min`), and serial port configuration.
 
 **`keyer_2_cw.h` / `keyer_2_cw.cpp`**  
 The CW state machine engine. Ported from `chestnut_cw.h/.cpp` (Chestnut transceiver project). Completely non-blocking. Contains the element and character buffers, the full ASCII-to-CW character mapping, and `service_cw_scheduler()`. Has no knowledge of hardware pins — it calls `cw_key()` and `ptt()` which are implemented in the `.ino`.
+
+**`keyer_2_serial.h`**  
+Serial port abstraction so the CLI and Winkey emulation can each run on any of up to 4 hardware serial ports (`KEYER_SERIAL_PORT_0`–`3` in `keyer_settings.h`).
+
+**`keyer_2_winkey.h` / `keyer_2_winkey.cpp`**  
+K1EL Winkeyer v2 protocol emulation for logging software (N1MM, Win-Test, etc.): host open/close, speed and mode set commands, PTT/sidetone control bytes, status reporting, and N1MM-style macro/paddle interrupt handling. Currently disabled by default (`FEATURE_WINKEY_EMULATION` commented out) because it requires Auto Serial Reset disabled on the Arduino — see the Winkey Emulation note in `README.md`.
 
 **`k3ng_keyer_2.ino`**  
 The main sketch. Contains:
@@ -92,26 +106,45 @@ The main sketch. Contains:
 - Global instances: `configuration`, `cw_scheduler`, `tx_ptt`
 - `setup()` and `loop()`
 - Hardware functions: `cw_key()`, `ptt()`, `sidetone()`, `service_sound()`, `check_ptt_tail()`
-- `check_paddles()` — paddle/straight key/bug mode input
-- `service_serial()` — serial CW keyboard and basic command interface
+- `check_paddles()` / `paddle_pin_read()` — paddle/straight key/bug mode input, including capacitive touch sensing
+- `service_serial()` — serial CW keyboard, CLI, and Winkey byte handling
+- `service_memory_program()`, `service_command_mode()`, `check_buttons()`, `service_sequencer()`, `service_ptt_interlock()` — optional-feature service routines
 - `blink_led()`, `say_hi()`
 
 ---
 
-## Currently Implemented (Phase 1)
+## Currently Implemented
 
-The following is built in and always compiled — no feature flag required:
+This section reflects `keyer_2_features_and_options.h` as of this writing. For the exhaustive per-item v1→v2 port status, see the Migration Checklist below — a feature can be fully ported but still shown commented out here (isolated for testing, or waiting on matching hardware).
+
+### Core (always compiled, no feature flag required)
 
 - **Iambic A mode** — squeeze keying with Iambic A memory behavior
-- **Iambic B mode** — squeeze keying with Iambic B memory behavior  
-- **Straight key mode** — both paddles act as straight key (KEY_DOWN_HOLD)
+- **Iambic B mode** — squeeze keying with Iambic B memory behavior
+- **Straight key mode** — both paddles act as straight key (`KEY_DOWN_HOLD`)
 - **Bug mode** — right paddle = straight key (dah), left paddle = auto dit
 - **Paddle reverse** — swap dit/dah paddle assignments
 - **Sidetone** — non-blocking via `tone()` / `service_sound()` state machine
 - **PTT** — with configurable lead time and tail time
 - **TX enable/disable** — sidetone-only practice mode when TX is off
-- **Serial CW keyboard** — type to send CW; characters queued in char buffer
-- **Basic serial command interface** — `\?`, `\a`, `\b`, `\g`, `\t`, `\n`, `\r`, `\w###`, `\f####`, `\i`, `\s`, `\\`
+- **EEPROM settings persistence** — auto-save after 30 s of inactivity, with factory reset (squeeze both paddles at power-up)
+- **Full serial CLI** (`FEATURE_COMMAND_LINE_INTERFACE`) — see [wiki/700-Command-Reference.md](wiki/700-Command-Reference.md) or `README.md`
+
+### Currently active (feature flags enabled)
+
+- `FEATURE_COMMAND_MODE`, `FEATURE_BUTTONS` — CW command mode entered via the analog button array
+- `FEATURE_MEMORIES`, `FEATURE_MEMORY_MACROS` — EEPROM CW memories with backslash macros
+- `FEATURE_POTENTIOMETER` — speed control potentiometer (don't enable without one wired up)
+- `FEATURE_PADDLE_ECHO` — echo paddle-keyed characters to serial
+- `FEATURE_BEACON`, `FEATURE_BEACON_SETTING` — beacon/fox mode
+- `FEATURE_ADDITIONAL_TX_AND_PTT_PINS` — up to 6 TX/PTT line pairs, selected with `\X#`
+- `FEATURE_FARNSWORTH` — Farnsworth inter-character spacing
+- `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` — early opposite-paddle latching in Iambic B
+- `FEATURE_CAPACITIVE_PADDLE_PINS` — capacitive touch paddle input
+
+### Ported, but currently disabled
+
+`FEATURE_WINKEY_EMULATION`, `FEATURE_ROTARY_ENCODER`, `FEATURE_SIDETONE_SWITCH`, `FEATURE_AUTOSPACE`, `FEATURE_DEAD_OP_WATCHDOG`, `FEATURE_QLF`, `FEATURE_SEQUENCER`, `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, `FEATURE_STRAIGHT_KEY`, `FEATURE_STRAIGHT_KEY_ECHO`, `FEATURE_PTT_INTERLOCK` — working implementations exist; flip the `#define` on in `keyer_2_features_and_options.h` to use them.
 
 ### Default Pin Assignments (keyer_2_pin_settings.h)
 
@@ -120,9 +153,11 @@ The following is built in and always compiled — no feature flag required:
 | `paddle_left` | 2 | Dit paddle, active LOW, internal pullup |
 | `paddle_right` | 5 | Dah paddle, active LOW, internal pullup |
 | `tx_key_line_1` | 11 | TX key output, HIGH = key down |
-| `ptt_tx_1` | 0 | PTT output (0 = disabled) |
+| `ptt_tx_1` | 13 | PTT output — shares the Uno/Nano onboard LED pin as a visual indicator |
 | `sidetone_line` | 4 | Sidetone speaker via `tone()` |
 | `status_led` | 13 | Heartbeat LED |
+| `analog_buttons_pin` | A1 | Analog button array (`FEATURE_BUTTONS`) |
+| `capacitive_paddle_pin_inhibit_pin` | 0 (disabled) | Forces mechanical paddle reads when driven HIGH (`FEATURE_CAPACITIVE_PADDLE_PINS`) |
 
 ### Default Settings (keyer_2.h)
 
