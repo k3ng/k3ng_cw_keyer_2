@@ -143,14 +143,14 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 
 ### High Priority — Core Features
 
-- [ ] `FEATURE_COMMAND_LINE_INTERFACE` — full v1 CLI (`\?`, `\a`–`\z`, `\w`, `\f`, etc.)
-- [ ] `FEATURE_MEMORIES` — CW memory storage and playback (EEPROM)
-- [ ] `FEATURE_MEMORY_MACROS` — macro commands within memories
-- [ ] `FEATURE_BUTTONS` — pushbutton support (command mode entry, memory playback)
-- [ ] `FEATURE_COMMAND_MODE` — command mode (enter with button 0)
-- [ ] `FEATURE_POTENTIOMETER` — analog speed control potentiometer
+- [x] `FEATURE_COMMAND_LINE_INTERFACE` — full v1 CLI (`\?`, `\a`–`\z`, `\w`, `\f`, etc.)
+- [x] `FEATURE_MEMORIES` — CW memory storage and playback (EEPROM)
+- [x] `FEATURE_MEMORY_MACROS` — macro commands within memories
+- [x] `FEATURE_BUTTONS` — pushbutton support (command mode entry, memory playback)
+- [x] `FEATURE_COMMAND_MODE` — command mode (enter with button 0)
+- [x] `FEATURE_POTENTIOMETER` — analog speed control potentiometer
 - [ ] `FEATURE_EEPROM_E24C1024` — external 1Mbit I2C EEPROM
-- [ ] `FEATURE_AUTOSPACE` — automatic character spacing
+- [x] `FEATURE_AUTOSPACE` — automatic character spacing
 
 ### Display
 
@@ -171,7 +171,7 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 
 ### Winkey Emulation
 
-- [ ] `FEATURE_WINKEY_EMULATION` — K1EL Winkeyer protocol over serial
+- [x] `FEATURE_WINKEY_EMULATION` — K1EL Winkeyer protocol over serial
 - [ ] `OPTION_PRIMARY_SERIAL_PORT_DEFAULT_WINKEY_EMULATION`
 - [ ] `OPTION_WINKEY_2_SUPPORT`
 - [ ] `OPTION_WINKEY_STRICT_HOST_OPEN`
@@ -197,17 +197,17 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 - [ ] `FEATURE_CW_COMPUTER_KEYBOARD` — send paddle chars as USB HID keystrokes (Due/Leonardo)
 - [ ] `FEATURE_4x4_KEYPAD` — 4×4 matrix keypad
 - [ ] `FEATURE_3x4_KEYPAD` — 3×4 matrix keypad
-- [ ] `FEATURE_ROTARY_ENCODER` — rotary encoder speed control
+- [x] `FEATURE_ROTARY_ENCODER` — rotary encoder speed control
 
 ### Timing and Keying Options
 
 - [x] `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` — CMOS Super Keyer Iambic B timing
-- [ ] `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` — adjustable dah-to-dit ratio
-- [ ] `FEATURE_FARNSWORTH` — Farnsworth sending speed
-- [ ] `FEATURE_QLF` — QLF (poor fist) mode
+- [x] `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` — adjustable dah-to-dit ratio
+- [x] `FEATURE_FARNSWORTH` — Farnsworth sending speed
+- [x] `FEATURE_QLF` — QLF (poor fist) mode
 - [ ] `OPTION_INCLUDE_PTT_TAIL_FOR_MANUAL_SENDING`
 - [ ] `OPTION_EXCLUDE_PTT_HANG_TIME_FOR_MANUAL_SENDING`
-- [ ] `OPTION_CMOS_SUPER_KEYER_IAMBIC_B_TIMING_ON_BY_DEFAULT`
+- [x] `OPTION_CMOS_SUPER_KEYER_IAMBIC_B_TIMING_ON_BY_DEFAULT`
 - [ ] `OPTION_INVERT_PADDLE_PIN_LOGIC`
 - [ ] `OPTION_DIRECT_PADDLE_PIN_READS_MEGA`
 - [ ] `OPTION_DIRECT_PADDLE_PIN_READS_UNO`
@@ -220,9 +220,9 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 
 ### Echo and Straight Key
 
-- [ ] `FEATURE_STRAIGHT_KEY` — dedicated straight key input on separate pin
-- [ ] `FEATURE_STRAIGHT_KEY_ECHO` — echo straight key chars to serial
-- [ ] `FEATURE_PADDLE_ECHO` — echo paddle chars to serial
+- [x] `FEATURE_STRAIGHT_KEY` — dedicated straight key input on separate pin
+- [x] `FEATURE_STRAIGHT_KEY_ECHO` — echo straight key chars to serial
+- [x] `FEATURE_PADDLE_ECHO` — echo paddle chars to serial
 
 ### Training
 
@@ -246,21 +246,21 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 ### Hardware / Power
 
 - [ ] `FEATURE_SLEEP` — sleep mode after inactivity (not compatible with Due)
-- [ ] `FEATURE_SEQUENCER` — TX sequencer output pins
+- [x] `FEATURE_SEQUENCER` — TX sequencer output pins
 - [x] `FEATURE_CAPACITIVE_PADDLE_PINS` — capacitive touch paddle pins
-- [ ] `FEATURE_PTT_INTERLOCK` — PTT interlock input pin
+- [x] `FEATURE_PTT_INTERLOCK` — PTT interlock input pin
 - [ ] `FEATURE_LED_RING` — Mayhew Labs LED ring
-- [ ] `FEATURE_DEAD_OP_WATCHDOG` — watchdog timer
+- [x] `FEATURE_DEAD_OP_WATCHDOG` — watchdog timer
 - [ ] `OPTION_WATCHDOG_TIMER` — ATmega hardware watchdog (4-second)
-- [ ] `FEATURE_SIDETONE_SWITCH` — external toggle switch for sidetone
+- [x] `FEATURE_SIDETONE_SWITCH` — external toggle switch for sidetone
 - [ ] `FEATURE_SIDETONE_NEWTONE` — NewTone library (timer1, pins 9/10)
 
 ### Beacon
 
-- [ ] `FEATURE_BEACON` — beacon mode if paddle_left is LOW at boot
-- [ ] `FEATURE_BEACON_SETTING` — beacon mode controlled by EEPROM (`\_` command)
-- [ ] `OPTION_BEACON_MODE_MEMORY_REPEAT_TIME`
-- [ ] `OPTION_BEACON_MODE_PTT_TAIL_TIME`
+- [x] `FEATURE_BEACON` — beacon mode if paddle_left is LOW at boot
+- [x] `FEATURE_BEACON_SETTING` — beacon mode controlled by EEPROM (`\_` command)
+- [x] `OPTION_BEACON_MODE_MEMORY_REPEAT_TIME`
+- [x] `OPTION_BEACON_MODE_PTT_TAIL_TIME`
 
 ### Networking
 
@@ -286,7 +286,7 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 ### Misc Options
 
 - [ ] `OPTION_SUPPRESS_SERIAL_BOOT_MSG`
-- [ ] `OPTION_DO_NOT_SAY_HI`
+- [x] `OPTION_DO_NOT_SAY_HI`
 - [ ] `OPTION_DO_NOT_SEND_UNKNOWN_CHAR_QUESTION`
 - [ ] `OPTION_UNKNOWN_CHARACTER_ERROR_TONE`
 - [ ] `OPTION_PROG_MEM_TRIM_TRAILING_SPACES`
