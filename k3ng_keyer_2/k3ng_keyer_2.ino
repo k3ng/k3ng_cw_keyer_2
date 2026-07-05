@@ -1799,7 +1799,7 @@ void serial_change_wordspace() {
 void serial_set_farnsworth() {
 
   // 0 = disable; otherwise must be > wpm to have any effect.
-  int new_fw = serial_get_number_input(3, 0, wpm_limit_high);
+  int new_fw = serial_get_number_input(3, 0, wpm_limit_high + 1);
   if (new_fw >= 0) {
     configuration.wpm_farnsworth = (uint8_t)new_fw;
     config_dirty = 1;
