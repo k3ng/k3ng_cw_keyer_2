@@ -4,7 +4,7 @@
 **Version:** 2-20260630  
 **License:** GNU GPL v3
 
-A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) (v1).
+A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) (v1).  If this is your first encounter with the K3NG CW Keyer, you should download, compile, and use v1, not this version.  This version is in progress and very experimental at this time.
 
 ---
 
