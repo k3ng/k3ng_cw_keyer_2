@@ -4,7 +4,7 @@
 **Version:** 2-20260630  
 **License:** GNU GPL v3
 
-A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) (v1) built around a CW state machine driven entirely by `millis()` — no `delay()` calls in the keying path.
+A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer) (v1).
 
 ---
 
