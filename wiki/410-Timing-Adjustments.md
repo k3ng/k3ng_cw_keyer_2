@@ -69,7 +69,7 @@ If the operator presses the next paddle during the autospace window, the extra w
 | Setting | Value |
 |---------|-------|
 | Default | Off |
-| CLI toggle | `\z` — **currently unreachable**: the CLI uppercases command characters before dispatch, so `\z` always resolves to the `\Z` case (set factor) below, never the toggle |
+| CLI toggle | `\Z` followed immediately by Enter (no digits) — the CLI uppercases command characters before dispatch, so a separate `\z` command isn't reachable; bare `\Z` and `\Z###` share the same case, distinguished by whether digits were entered |
 | CLI factor | `\Z###` (integer × 100; e.g. `\Z200` = 2.0 dits) |
 | Default factor | 200 (2.0 dits extra) |
 | Factor range | 10–999 |

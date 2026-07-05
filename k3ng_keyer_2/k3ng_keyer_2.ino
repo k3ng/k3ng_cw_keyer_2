@@ -2024,7 +2024,7 @@ void print_serial_help() {
   primary_serial_port->println(F("\\%##\t\tSet CMOS Super Keyer timing threshold % (0-99)"));
   #endif
   #ifdef FEATURE_AUTOSPACE
-  primary_serial_port->println(F("\\z\t\tToggle autospace on/off"));
+  primary_serial_port->println(F("\\Z\t\tToggle autospace on/off"));
   primary_serial_port->println(F("\\Z###\t\tSet autospace timing factor (10-999; 200=2.0 dits)"));
   #endif
   #ifdef FEATURE_SEQUENCER
@@ -2267,7 +2267,7 @@ void process_cli_command(char cmd) {
       primary_serial_port->println(configuration.cmos_super_keyer_iambic_b_timing_on ? F("n") : F("ff"));
       break;
     case '%': {
-      int new_pct = serial_get_number_input(1, 0, 99);
+      int new_pct = serial_get_number_input(2, -1, 100);
       if (new_pct >= 0) {
         configuration.cmos_super_keyer_iambic_b_timing_percent = (uint8_t)new_pct;
         config_dirty = 1;
@@ -2376,15 +2376,20 @@ void process_cli_command(char cmd) {
     }
     #endif // FEATURE_ADDITIONAL_TX_AND_PTT_PINS
     #ifdef FEATURE_AUTOSPACE
-    case 'z':   // \z — toggle autospace on/off (matches v1)
-      configuration.autospace_active = !configuration.autospace_active;
-      config_dirty = 1;
-      primary_serial_port->print(F("Autospace: O"));
-      primary_serial_port->println(configuration.autospace_active ? F("n") : F("ff"));
-      break;
-    case 'Z': { // \Z### — set autospace timing factor (integer * 100; e.g. 200 = 2.0 dits)
+    case 'Z': { // \Z<Enter> — toggle autospace on/off; \Z### — set timing factor (integer * 100;
+                // e.g. 200 = 2.0 dits). The CLI uppercases every command character before
+                // dispatch (see service_cli_port()), so a separate lowercase \z can never
+                // reach this switch -- it always arrives here as 'Z'. Bare Enter (no digits)
+                // is detected via serial_get_number_input()'s -1 "empty input" return and
+                // used as the toggle; note ESC while at this prompt also returns -1 and will
+                // likewise toggle, since the two cases aren't distinguishable from here.
       int new_af = serial_get_number_input(3, 9, 1001);
-      if (new_af > 0) {
+      if (new_af == -1) {
+        configuration.autospace_active = !configuration.autospace_active;
+        config_dirty = 1;
+        primary_serial_port->print(F("Autospace: O"));
+        primary_serial_port->println(configuration.autospace_active ? F("n") : F("ff"));
+      } else if (new_af > 0) {
         configuration.autospace_timing_factor = (unsigned int)new_af;
         config_dirty = 1;
         primary_serial_port->print(F("Autospace factor: "));
@@ -2393,7 +2398,6 @@ void process_cli_command(char cmd) {
       break;
     }
     #else
-    case 'z':
     case 'Z': // Autospace (enable FEATURE_AUTOSPACE)
       primary_serial_port->println(F("FEATURE_AUTOSPACE not enabled"));
       break;

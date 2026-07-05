@@ -26,12 +26,12 @@ Press **ESC** at any time to clear the send buffer and stop sending.
 | `\F####` | Set sidetone frequency in Hz, 100–9999 (e.g. `\F600`) | — |
 | `\Y##` | Set wordspace in dit units (1–99, default 7) | — |
 | `\M###` | Set Farnsworth inter-character WPM (0 = disable; must be higher than sending WPM) | `FEATURE_FARNSWORTH` |
-| `\z` | Toggle autospace on/off — **unreachable**: the CLI uppercases command chars, so `\z` always resolves to `\Z` below | `FEATURE_AUTOSPACE` (disabled by default) |
+| `\Z` (no digits, then Enter) | Toggle autospace on/off | `FEATURE_AUTOSPACE` (disabled by default) |
 | `\Z###` | Set autospace timing factor × 100 (e.g. `\Z200` = 2.0 dits) | `FEATURE_AUTOSPACE` (disabled by default) |
 | `\J###` | Set dah/dit ratio × 100 (300 = 3:1, range 151–809) — works regardless of the flag below, since the underlying config field and CW timing engine are unconditional | — |
 | `\^` | Toggle dynamic dah/dit ratio auto-adjustment | `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` (disabled by default) |
 | `\&` | Toggle CMOS Super Keyer Iambic B timing on/off | `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` |
-| `\%#` | Set CMOS Super Keyer timing threshold %, single digit only (0–9, despite the two-digit notation) | `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` |
+| `\%##` | Set CMOS Super Keyer timing threshold % (0–99) | `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` |
 
 ---
 

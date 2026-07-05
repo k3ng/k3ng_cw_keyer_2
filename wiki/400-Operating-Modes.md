@@ -38,7 +38,7 @@ Toggle with `\N` or command mode `N`.
 
 An enhancement to Iambic B timing. The keyer starts latching the opposing paddle after a configurable percentage of the current element has elapsed, rather than waiting until the element ends. This allows slightly earlier triggering of the alternating element and can feel more responsive at high speeds.
 
-Enable/disable with `\&`. Set the timing percentage with `\%#` — despite the two-digit-looking notation, the CLI currently only accepts a **single digit (0–9)**; two-digit values like the compiled-in default of 33% cannot be entered this way once changed.
+Enable/disable with `\&`. Set the timing percentage with `\%##` (0–99).
 
 Requires `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` (active by default).
 
