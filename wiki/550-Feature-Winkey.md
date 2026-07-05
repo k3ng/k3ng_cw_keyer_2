@@ -49,4 +49,4 @@ Multiple serial ports can run in different modes simultaneously. Port 0 can be C
 
 - Winkey EEPROM read/write commands are not implemented
 - Some Winkey 2 extended commands may not be supported
-- `OPTION_WINKEY_2_SUPPORT` must be enabled for version 2 mode (enabled by default)
+- Unlike v1, v2 always emulates Winkey version 2 (version byte 23) unconditionally — there is no v1-compatible mode and no `OPTION_WINKEY_2_SUPPORT` toggle

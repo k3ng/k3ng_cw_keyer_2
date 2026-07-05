@@ -4,6 +4,8 @@
 
 Version 2 is built around a single invariant: **`loop()` always returns quickly.** Every timing decision is made by comparing `millis()` to a stored deadline.
 
+This is a deliberate departure from v1, where all CW element timing ran inside a blocking function, `loop_element_lengths()`, that spun in a `while (micros() - start < ticks)` busy-wait for the duration of every dit and dah. The whole program froze inside that loop while an element was being sent, so servicing paddles, the serial port, a display, or a rotary encoder during that time meant cramming it all inside the while loop — which grew increasingly unwieldy as more features were added. v2's non-blocking scheduler removes that constraint entirely.
+
 ## The CW State Machine
 
 The heart of v2 is `service_cw_scheduler()`, defined in `keyer_2_cw.cpp`. It is called **multiple times per `loop()` iteration** and advances a state machine through these states:
@@ -41,27 +43,32 @@ No state blocks. Each call takes microseconds.
 
 ```cpp
 void loop() {
-  check_paddles();             // read paddle pins; queue elements immediately
-  service_cw_scheduler();      // advance key state machine
-  check_ptt_tail();            // release PTT after tail time
-  service_sequencer();         // drive TX sequencer output pins
-  service_serial();            // process CLI / Winkey bytes
-  service_cw_scheduler();      // (called again for responsiveness)
-  service_sound();             // advance beep/boop state machine
-  service_beacon_mode();       // beacon mode timing
-  check_potentiometer();       // WPM pot
-  check_sidetone_switch();     // external sidetone on/off
-  service_straight_key();      // straight key pin
-  service_paddle_echo();       // echo paddle chars to serial
+  check_paddles();                 // read paddle pins; queue elements immediately
+  service_ptt_interlock();         // FEATURE_PTT_INTERLOCK
+  service_cw_scheduler();          // advance key state machine
+  check_ptt_tail();                // release PTT after tail time
+  service_sequencer();             // FEATURE_SEQUENCER — drive TX sequencer output pins
+  service_serial();                // process CLI / Winkey bytes
+  service_cw_scheduler();          // (called again for responsiveness)
+  service_sound();                 // advance beep/boop state machine
+  service_beacon_mode();           // FEATURE_BEACON + FEATURE_MEMORIES
+  check_potentiometer();           // FEATURE_POTENTIOMETER — WPM pot
+  check_rotary_encoder();          // FEATURE_ROTARY_ENCODER
+  check_sidetone_switch();         // FEATURE_SIDETONE_SWITCH — external sidetone on/off
+  service_straight_key();          // FEATURE_STRAIGHT_KEY
+  service_straight_key_echo();     // FEATURE_STRAIGHT_KEY_ECHO
+  service_paddle_echo();           // FEATURE_PADDLE_ECHO — echo paddle chars to serial
   check_for_dirty_configuration(); // auto-save EEPROM after 30s
-  service_memory_program();    // paddle memory entry
-  service_command_mode();      // CW command mode state machine
-  check_buttons();             // analog button array
-  service_cw_scheduler();      // (called again for responsiveness)
+  service_cw_scheduler();          // (called again for responsiveness)
+  service_winkey_housekeeping();   // FEATURE_WINKEY_EMULATION
+  service_memory_program();        // FEATURE_MEMORIES — paddle memory entry
+  service_command_mode();          // FEATURE_COMMAND_MODE
+  check_buttons();                 // FEATURE_BUTTONS — analog button array
+  service_cw_scheduler();          // (called again for responsiveness)
 }
 ```
 
-`service_cw_scheduler()` is called three times per loop to minimize latency between a paddle hit and the start of the element.
+Every line above is wrapped in that feature's `#ifdef` in the actual source (omitted here for readability) except `check_paddles()`, `service_cw_scheduler()`, `check_ptt_tail()`, `service_serial()`, `service_sound()`, and `check_for_dirty_configuration()`, which are unconditional. `service_cw_scheduler()` is called four times per loop to minimize latency between a paddle hit (or the end of the previous element) and the start of the next one.
 
 ## PTT Lead Time
 

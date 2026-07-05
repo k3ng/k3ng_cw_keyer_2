@@ -6,29 +6,13 @@ A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer
 
 ## Features
 
-- Iambic A and B, straight key, bug mode, paddle reverse
-- PTT with configurable lead time and tail time
-- Adjustable sidetone frequency
-- Up to 6 selectable TX/PTT lines
-- Up to 5 TX/RX sequencer outputs with independent timing
-- PTT interlock input (suppresses PTT without stopping TX key line)
-- CW memories stored in EEPROM with backslash macros
-- Analog multiplexed button array (play/program memories, enter command mode)
-- CW command mode (change settings via paddle)
-- Speed potentiometer and rotary encoder
-- Farnsworth timing
-- Autospace (automatic letterspace insertion on paddle sending)
-- CMOS Super Keyer Iambic B timing
-- Dynamic dah/dit ratio
-- Dead Operator Watchdog
-- Straight key with character echo
-- Paddle character echo to serial
-- Capacitive touch paddle input (no mechanical contacts required)
-- Beacon / fox mode
-- Winkey v2 protocol emulation
-- Full serial CLI (`\W`, `\F`, `\S`, etc.)
-- EEPROM settings persistence with auto-save
-- Factory reset (squeeze both paddles at power-up)
+All optional features are compile-time switches in `keyer_2_features_and_options.h`. A feature below can have a complete, working implementation while still being commented out in that file — either isolated for testing or waiting on matching hardware. See the [K3NG_CW_KEYER v2 README](https://github.com/k3ng/k3ng_cw_keyer_2#readme) Migration Checklist for the exhaustive per-item v1→v2 port status.
+
+**Core (always compiled):** Iambic A and B, straight key mode, bug mode, paddle reverse, sidetone, PTT with lead/tail time, EEPROM settings persistence with auto-save, factory reset (squeeze both paddles at power-up), full serial CLI (`\W`, `\F`, `\S`, etc.)
+
+**Currently active:** CW command mode, analog button array, CW memories with backslash macros, speed potentiometer, paddle character echo, beacon/fox mode, up to 6 selectable TX/PTT lines, Farnsworth timing, CMOS Super Keyer Iambic B timing, capacitive touch paddle input
+
+**Ported, but currently disabled** (flip the `#define` on to use): Winkey v2 protocol emulation, rotary encoder speed control, external sidetone on/off switch, autospace, Dead Operator Watchdog, QLF (poor fist) practice mode, TX/RX sequencer outputs, dynamic dah/dit ratio, dedicated straight key input with character echo, PTT interlock input
 
 ---
 

@@ -8,19 +8,42 @@ Three files control the build. Edit them before compiling.
 
 This is the main feature switch file. Comment out (`//`) features you don't want; uncomment features you do want.
 
+Currently shipped active by default:
+
 ```cpp
-#define FEATURE_COMMAND_LINE_INTERFACE   // Serial CLI (\W, \F, \S, etc.)
-#define FEATURE_SERIAL_HELP              // \? help text
-#define FEATURE_COMMAND_MODE             // CW command mode via button
-#define FEATURE_BUTTONS                  // Analog button array
-#define FEATURE_MEMORIES                 // CW memories in EEPROM
-#define FEATURE_MEMORY_MACROS            // \E, \S, \W macros in memories
-#define FEATURE_POTENTIOMETER            // Speed pot (only if hardware present!)
-#define FEATURE_PADDLE_ECHO              // Echo paddle chars to serial
-#define FEATURE_BEACON                   // Beacon / fox mode
-#define FEATURE_SEQUENCER                // TX/RX sequencer outputs
-// #define FEATURE_WINKEY_EMULATION      // Winkey v2 (requires disabling ASR)
+#define FEATURE_COMMAND_LINE_INTERFACE            // Serial CLI (\W, \F, \S, etc.)
+#define FEATURE_SERIAL_HELP                       // \? help text
+#define FEATURE_COMMAND_MODE                      // CW command mode via button
+#define FEATURE_BUTTONS                           // Analog button array
+#define FEATURE_MEMORIES                          // CW memories in EEPROM
+#define FEATURE_MEMORY_MACROS                     // \E, \S, \W macros in memories
+#define FEATURE_POTENTIOMETER                     // Speed pot (only if hardware present!)
+#define FEATURE_PADDLE_ECHO                       // Echo paddle chars to serial
+#define FEATURE_BEACON                            // Beacon / fox mode
+#define FEATURE_BEACON_SETTING                    // \_ persists beacon-on-boot to EEPROM
+#define FEATURE_ADDITIONAL_TX_AND_PTT_PINS        // Up to 6 TX/PTT line pairs, \X# to select
+#define FEATURE_FARNSWORTH                        // Farnsworth inter-character spacing
+#define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // Early opposite-paddle latching in Iambic B
+#define FEATURE_CAPACITIVE_PADDLE_PINS            // Capacitive touch paddle input
 ```
+
+Fully ported but shipped commented out — either because they need matching hardware or were disabled to isolate another feature during testing. Uncomment to use:
+
+```cpp
+// #define FEATURE_WINKEY_EMULATION           // Winkey v2 (requires disabling ASR)
+// #define FEATURE_ROTARY_ENCODER             // Rotary encoder speed control
+// #define FEATURE_SIDETONE_SWITCH            // External sidetone on/off switch
+// #define FEATURE_AUTOSPACE                  // Auto letterspace on paddle sending
+// #define FEATURE_DEAD_OP_WATCHDOG           // Clears TX if paddle stuck
+// #define FEATURE_QLF                        // QLF (poor fist) practice mode
+// #define FEATURE_SEQUENCER                  // TX/RX sequencer outputs
+// #define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO   // Auto-adjust dah/dit ratio with WPM
+// #define FEATURE_STRAIGHT_KEY               // Dedicated straight key input pin
+// #define FEATURE_STRAIGHT_KEY_ECHO          // Echo straight key chars to serial
+// #define FEATURE_PTT_INTERLOCK              // Input pin suppresses PTT when asserted
+```
+
+See the project README's Migration Checklist for the complete list, including features with no implementation yet.
 
 **Important:** `FEATURE_POTENTIOMETER` will cause erratic WPM if enabled without hardware. `FEATURE_WINKEY_EMULATION` requires Auto Serial Reset to be disabled on the Arduino — see [[Winkey Emulation|550-Feature-Winkey]].
 
