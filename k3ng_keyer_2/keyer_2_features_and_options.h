@@ -43,6 +43,7 @@
 #define FEATURE_ADDITIONAL_TX_AND_PTT_PINS            // Additional TX key lines 2-6 and PTT lines 2-6; \X# CLI command
 // #define FEATURE_ROTARY_ENCODER                 // Rotary encoder speed control
 #define FEATURE_FARNSWORTH                     // Farnsworth sending speed
+#define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 //#define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
 // #define FEATURE_AUTOSPACE                      // Automatic character spacing
 // #define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears the buffer if no paddle activity
@@ -60,7 +61,6 @@
 
 // *** Not ported from v1 yet ***
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
-// #define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 // #define FEATURE_CW_DECODER                     // CW decoder (https://github.com/k3ng/k3ng_cw_keyer/wiki/385-Feature:-CW-Decoder)
 // #define FEATURE_TRAINING_COMMAND_LINE_INTERFACE // CW training via CLI
 // #define FEATURE_ALPHABET_SEND_PRACTICE         // Command mode S: alphabet practice (by Ryan, KC2ZWM)
