@@ -11,6 +11,7 @@ A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer
 - Adjustable sidetone frequency
 - Up to 6 selectable TX/PTT lines
 - Up to 5 TX/RX sequencer outputs with independent timing
+- PTT interlock input (suppresses PTT without stopping TX key line)
 - CW memories stored in EEPROM with backslash macros
 - Analog multiplexed button array (play/program memories, enter command mode)
 - CW command mode (change settings via paddle)

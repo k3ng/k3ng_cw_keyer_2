@@ -43,15 +43,14 @@
 #define FEATURE_ADDITIONAL_TX_AND_PTT_PINS            // Additional TX key lines 2-6 and PTT lines 2-6; \X# CLI command
 // #define FEATURE_ROTARY_ENCODER                 // Rotary encoder speed control
 #define FEATURE_FARNSWORTH                     // Farnsworth sending speed
-#define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
-#define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears TX if paddle stuck > 100 consecutive dits or dahs
-//#define FEATURE_QLF                            // QLF (poor fist) mode
-#define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
-#define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO       // Dynamically adjust dah-to-dit ratio
-#define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
-
-// #define OPTION_CMOS_SUPER_KEYER_IAMBIC_B_TIMING_ON_BY_DEFAULT  // Enable CMOS Super Keyer timing by default
-
+//#define FEATURE_SIDETONE_SWITCH                // External toggle switch for sidetone on/off
+// #define FEATURE_AUTOSPACE                      // Automatic character spacing
+// #define FEATURE_DEAD_OP_WATCHDOG               // Watchdog that clears the buffer if no paddle activity
+// #define FEATURE_QLF                            // QLF (poor fist) mode
+// #define FEATURE_SEQUENCER                      // TX sequencer output pins
+// #define FEATURE_DYNAMIC_DAH_TO_DIT_RATIO       // Dynamically adjust dah-to-dit ratio
+// #define FEATURE_STRAIGHT_KEY                   // Dedicated straight key input on separate pin
+// #define FEATURE_STRAIGHT_KEY_ECHO              // Echo straight key characters to serial port
 
 // #define DEBUG_WINKEY_EMULATION             // Verbose Winkey debug output on DEBUG_WINKEY_PORT
 // #define DEBUG_WINKEY_PORT       Serial3    // Serial port for Winkey debug output
@@ -59,17 +58,9 @@
 
 
 
-// *** Not implemented yet ***
-
-// --- Features ---
-
+// *** Not ported from v1 yet ***
 // #define FEATURE_SIDETONE_NEWTONE               // Use NewTone library instead of standard tone() (~1k smaller; timer1, pins 9/10)
-#define FEATURE_AUTOSPACE                      // Automatic character spacing
-
-
-
-
-#define FEATURE_STRAIGHT_KEY_ECHO              // Echo straight key characters to serial port
+// #define FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING  // CMOS Super Keyer Iambic B timing
 // #define FEATURE_CW_DECODER                     // CW decoder (https://github.com/k3ng/k3ng_cw_keyer/wiki/385-Feature:-CW-Decoder)
 // #define FEATURE_TRAINING_COMMAND_LINE_INTERFACE // CW training via CLI
 // #define FEATURE_ALPHABET_SEND_PRACTICE         // Command mode S: alphabet practice (by Ryan, KC2ZWM)
@@ -78,8 +69,7 @@
 // #define FEATURE_HELL                           // Hellschreiber mode
 // #define FEATURE_AMERICAN_MORSE                 // American Morse mode
 // #define FEATURE_CAPACITIVE_PADDLE_PINS         // Capacitive touch paddle pins (remove bypass caps from paddle lines)
-// #define FEATURE_PTT_INTERLOCK                  // PTT interlock input pin
-#define FEATURE_SEQUENCER                      // TX sequencer output pins
+#define FEATURE_PTT_INTERLOCK                  // PTT interlock input pin
 // #define FEATURE_DL2SBA_BANKSWITCH              // Memory bank switching (http://dl2sba.com)
 // #define FEATURE_EEPROM_E24C1024                // External 1Mbit I2C EEPROM support
 // #define FEATURE_SD_CARD_SUPPORT                // SD card support
@@ -140,6 +130,7 @@
 // #define OPTION_SIDETONE_DIGITAL_OUTPUT_NO_SQUARE_WAVE  // Sidetone on digital output without square wave
 // #define OPTION_DIRECT_PADDLE_PIN_READS_MEGA            // Direct port reads on Mega pins 2 and 5 (minor performance gain)
 // #define OPTION_DIRECT_PADDLE_PIN_READS_UNO             // Direct port reads on Uno/Nano pins 2 and 5 (not for NanoKeyer)
+// #define OPTION_CMOS_SUPER_KEYER_IAMBIC_B_TIMING_ON_BY_DEFAULT  // Enable CMOS Super Keyer timing by default
 // #define OPTION_MORE_DISPLAY_MSGS                       // Additional optional display messages (uses more memory)
 // #define OPTION_MOUSE_MOVEMENT_PADDLE                   // Experimental: mouse movement acts as a paddle
 // #define OPTION_PS2_NON_ENGLISH_CHAR_LCD_DISPLAY_SUPPORT  // Non-English PS2 characters on LCD (by Marcin, SP5IOU)

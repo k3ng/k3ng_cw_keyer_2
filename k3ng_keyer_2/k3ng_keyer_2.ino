@@ -167,6 +167,10 @@ byte sequencer_4_active = 0;
 byte sequencer_5_active = 0;
 #endif
 
+#ifdef FEATURE_PTT_INTERLOCK
+byte ptt_interlock_active = 0;  // 1 = interlock pin asserted; PTT suppressed
+#endif
+
 // ---------------------------------------------------------------------------
 // forward declarations for functions defined below
 // ---------------------------------------------------------------------------
@@ -195,6 +199,9 @@ bool read_settings_from_eeprom();
 void check_for_dirty_configuration();
 #ifdef FEATURE_SEQUENCER
 void service_sequencer();
+#endif
+#ifdef FEATURE_PTT_INTERLOCK
+void service_ptt_interlock();
 #endif
 void check_paddles();
 void cw_key(struct tx_ptt_struct *tx_ptt_ptr, int state, config_struct *configuration_ptr);
@@ -308,6 +315,10 @@ void setup() {
   if (sequencer_3_pin) { pinMode(sequencer_3_pin, OUTPUT); digitalWrite(sequencer_3_pin, sequencer_pins_inactive_state); }
   if (sequencer_4_pin) { pinMode(sequencer_4_pin, OUTPUT); digitalWrite(sequencer_4_pin, sequencer_pins_inactive_state); }
   if (sequencer_5_pin) { pinMode(sequencer_5_pin, OUTPUT); digitalWrite(sequencer_5_pin, sequencer_pins_inactive_state); }
+  #endif
+
+  #ifdef FEATURE_PTT_INTERLOCK
+  if (ptt_interlock) { pinMode(ptt_interlock, INPUT_PULLUP); }
   #endif
 
   // Debug serial port for Winkey tracing (must come before other serial init)
@@ -468,6 +479,9 @@ void setup() {
 void loop() {
 
   check_paddles();
+  #ifdef FEATURE_PTT_INTERLOCK
+  service_ptt_interlock();
+  #endif
   service_cw_scheduler(&cw_scheduler, &tx_ptt, &configuration);
   check_ptt_tail();
   #ifdef FEATURE_SEQUENCER
@@ -953,11 +967,17 @@ void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key) {
 
   if (key && tx_ptt_ptr->cw_tx_enabled) {
     if (!tx_ptt_ptr->ptt_line_asserted) {
-      digitalWrite(tx_ptt_ptr->pin_ptt, HIGH);
-      tx_ptt_ptr->ptt_line_asserted = 1;
-      #ifdef FEATURE_SEQUENCER
-      sequencer_ptt_activation_time = millis();
-      sequencer_ptt_inactive_time   = 0;  // cancel any pending de-assert
+      #ifdef FEATURE_PTT_INTERLOCK
+      if (!ptt_interlock_active) {
+      #endif
+        digitalWrite(tx_ptt_ptr->pin_ptt, HIGH);
+        tx_ptt_ptr->ptt_line_asserted = 1;
+        #ifdef FEATURE_SEQUENCER
+        sequencer_ptt_activation_time = millis();
+        sequencer_ptt_inactive_time   = 0;  // cancel any pending de-assert
+        #endif
+      #ifdef FEATURE_PTT_INTERLOCK
+      }
       #endif
     }
     tx_ptt_ptr->ptt_time = millis();
@@ -1213,6 +1233,34 @@ void service_sequencer() {
 // If the scheduler is busy it latches the opposing paddle into a 1-element buffer
 // (dit_buffer / dah_buffer) so it fires as soon as the current element finishes.
 // Straight key and bug mode are handled as KEY_DOWN_HOLD states.
+// ---------------------------------------------------------------------------
+
+#ifdef FEATURE_PTT_INTERLOCK
+// ---------------------------------------------------------------------------
+// service_ptt_interlock() — poll the interlock input pin and update ptt_interlock_active.
+//
+// When the pin reads ptt_interlock_active_state, PTT assertion is suppressed in ptt().
+// The TX key line is unaffected — only PTT is blocked.
+// Pin: ptt_interlock in keyer_2_pin_settings.h (0 = disabled).
+// Active state and poll interval: keyer_settings.h.
+// ---------------------------------------------------------------------------
+void service_ptt_interlock() {
+
+  if (!ptt_interlock) return;
+
+  static unsigned long last_check = 0;
+  if ((millis() - last_check) < ptt_interlock_check_every_ms) return;
+  last_check = millis();
+
+  if (digitalRead(ptt_interlock) == ptt_interlock_active_state) {
+    ptt_interlock_active = 1;
+  } else {
+    ptt_interlock_active = 0;
+  }
+
+}
+#endif // FEATURE_PTT_INTERLOCK
+
 // ---------------------------------------------------------------------------
 
 void check_paddles() {
@@ -1670,6 +1718,16 @@ void serial_status() {
   primary_serial_port->print(F("PTT tail: "));
   primary_serial_port->print(tx_ptt.ptt_tail_time);
   primary_serial_port->println(F(" ms"));
+  #ifdef FEATURE_PTT_INTERLOCK
+  primary_serial_port->print(F("PTT interlock pin: "));
+  if (ptt_interlock) {
+    primary_serial_port->print(ptt_interlock);
+    primary_serial_port->print(F("  State: "));
+    primary_serial_port->println(ptt_interlock_active ? F("ACTIVE (PTT suppressed)") : F("Inactive"));
+  } else {
+    primary_serial_port->println(F("Not configured"));
+  }
+  #endif
   primary_serial_port->print(F("Wordspace: "));
   primary_serial_port->println(cw_scheduler.length_wordspace);
   #ifdef FEATURE_SIDETONE_SWITCH

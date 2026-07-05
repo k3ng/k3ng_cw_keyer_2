@@ -99,6 +99,7 @@ All features are compile-time switches in `keyer_2_features_and_options.h`.
 | `FEATURE_STRAIGHT_KEY` | Dedicated straight key input on a separate pin |
 | `FEATURE_STRAIGHT_KEY_ECHO` | Echo straight key characters to serial port |
 | `FEATURE_SEQUENCER` | Up to 5 TX sequencer output pins with independent PTT-relative timing |
+| `FEATURE_PTT_INTERLOCK` | Input pin that suppresses PTT (TX key line unaffected) when asserted |
 | `FEATURE_WINKEY_EMULATION` | Winkey v2 protocol emulation (disabled by default; see note below) |
 
 ### Planned / not yet ported

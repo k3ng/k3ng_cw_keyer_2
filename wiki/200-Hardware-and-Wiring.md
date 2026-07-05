@@ -66,6 +66,26 @@ A 1kΩ to 10kΩ potentiometer works well. Enable `FEATURE_POTENTIOMETER` and set
 
 **Important:** Do not enable `FEATURE_POTENTIOMETER` unless a potentiometer is actually connected — a floating analog input will cause the WPM to jump around.
 
+## PTT Interlock Input
+
+`FEATURE_PTT_INTERLOCK` provides a dedicated input pin that, when asserted, suppresses the PTT output while still allowing the TX key line to go active. This is useful in SO2R setups, interlock-with-another-radio, or any situation where an external circuit needs to block your transmitter's PTT without stopping the CW key line.
+
+Configure the pin in `keyer_2_pin_settings.h`:
+
+```cpp
+#ifdef FEATURE_PTT_INTERLOCK
+  #define ptt_interlock  0   // set to actual pin number; 0 = disabled
+#endif
+```
+
+The pin is configured as `INPUT_PULLUP`. The interlock activates when the pin reads `ptt_interlock_active_state` (default `HIGH`). To activate the interlock, pull the pin HIGH externally (or tie it to VCC). To release, pull it LOW or leave it floating (it rests LOW via pullup when nothing is connected).
+
+**Polling:** The pin is checked every `ptt_interlock_check_every_ms` (default 100 ms). Both defaults are in `keyer_settings.h`.
+
+**Effect:** While the interlock is active, PTT is suppressed — the transceiver will not be keyed into transmit. The CW key line still goes active, and sidetone still plays, so you hear what you're sending but the radio doesn't transmit.
+
+`\S` shows the current interlock state.
+
 ## TX/RX Sequencer Outputs
 
 Up to 5 sequencer output pins can be defined. See [[TX/RX Sequencer|560-Feature-Sequencer]] for wiring and timing details.

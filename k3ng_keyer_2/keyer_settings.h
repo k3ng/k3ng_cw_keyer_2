@@ -77,6 +77,15 @@
 #define initial_command_mode_speed_wpm          20    // default command mode speed (for future \M command)
 
 // ---------------------------------------------------------------------------
+// PTT Interlock (FEATURE_PTT_INTERLOCK)
+// ---------------------------------------------------------------------------
+// An input pin that, when asserted, suppresses PTT output while still allowing
+// the TX key line to go active. Useful in SO2R or band-change interlocks.
+// Configure the pin in keyer_2_pin_settings.h: ptt_interlock (0 = disabled).
+#define ptt_interlock_active_state    HIGH  // pin level that activates the interlock
+#define ptt_interlock_check_every_ms  100   // how often to poll the interlock pin (ms)
+
+// ---------------------------------------------------------------------------
 // Autospace (FEATURE_AUTOSPACE)
 // ---------------------------------------------------------------------------
 // Extra inter-element space added after each manually-keyed dit or dah when
