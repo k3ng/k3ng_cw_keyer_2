@@ -16,6 +16,15 @@
 #define paddle_left      2    // Dit paddle input  (active LOW, uses internal pullup)
 #define paddle_right     5    // Dah paddle input  (active LOW, uses internal pullup)
 
+// Capacitive touch paddles (FEATURE_CAPACITIVE_PADDLE_PINS): remove the bypass
+// capacitors on paddle_left/paddle_right when using capacitive touch plates.
+// If this pin is defined (nonzero) and reads HIGH, capacitive sensing is
+// bypassed in favor of a normal digitalRead — lets you switch back to
+// mechanical paddles without reflashing. 0 = always capacitive.
+#ifdef FEATURE_CAPACITIVE_PADDLE_PINS
+  #define capacitive_paddle_pin_inhibit_pin  0
+#endif
+
 #define tx_key_line_1   11    // TX key line 1  (HIGH = key down / TX on)
 
 #define ptt_tx_1         13    // PTT line for TX 1  (0 = not used)

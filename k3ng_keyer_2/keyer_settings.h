@@ -86,6 +86,14 @@
 #define ptt_interlock_check_every_ms  100   // how often to poll the interlock pin (ms)
 
 // ---------------------------------------------------------------------------
+// Capacitive touch paddles (FEATURE_CAPACITIVE_PADDLE_PINS)
+// ---------------------------------------------------------------------------
+// read_capacitive_pin() returns a 0-17 cycle count (see k3ng_keyer_2.ino).
+// A paddle reads as pressed once its count exceeds this threshold. Configure
+// the inhibit pin in keyer_2_pin_settings.h: capacitive_paddle_pin_inhibit_pin.
+#define capacitance_threshold  2
+
+// ---------------------------------------------------------------------------
 // Autospace (FEATURE_AUTOSPACE)
 // ---------------------------------------------------------------------------
 // Extra inter-element space added after each manually-keyed dit or dah when

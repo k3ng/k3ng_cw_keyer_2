@@ -203,6 +203,7 @@ void service_sequencer();
 #ifdef FEATURE_PTT_INTERLOCK
 void service_ptt_interlock();
 #endif
+int paddle_pin_read(int pin_to_read);
 void check_paddles();
 void cw_key(struct tx_ptt_struct *tx_ptt_ptr, int state, config_struct *configuration_ptr);
 void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key);
@@ -393,8 +394,8 @@ void setup() {
   #endif
 
   // Factory reset: squeeze both paddles at power-up to clear settings and memories
-  if (digitalRead(paddle_left) == LOW && digitalRead(paddle_right) == LOW) {
-    while (digitalRead(paddle_left) == LOW || digitalRead(paddle_right) == LOW) {}
+  if (paddle_pin_read(paddle_left) == LOW && paddle_pin_read(paddle_right) == LOW) {
+    while (paddle_pin_read(paddle_left) == LOW || paddle_pin_read(paddle_right) == LOW) {}
     write_settings_to_eeprom();   // write defaults to EEPROM
     #ifdef FEATURE_MEMORIES
     for (byte m = 0; m < number_of_memories; m++) {
@@ -448,7 +449,7 @@ void setup() {
 
   // Beacon mode: enter if paddle_left held LOW at boot, or if EEPROM setting is active
   #if defined(FEATURE_BEACON) && defined(FEATURE_MEMORIES)
-  if (digitalRead(paddle_left) == LOW) {
+  if (paddle_pin_read(paddle_left) == LOW) {
     keyer_machine_mode = KEYER_BEACON;
   }
   #endif
@@ -638,8 +639,8 @@ void check_for_dirty_configuration() {
       cw_scheduler.char_send_buffer_bytes    == 0 &&
       cw_scheduler.element_send_buffer_bytes == 0 &&
       tx_ptt.ptt_line_asserted               == 0 &&
-      digitalRead(paddle_left)               == HIGH &&
-      digitalRead(paddle_right)              == HIGH) {
+      paddle_pin_read(paddle_left)               == HIGH &&
+      paddle_pin_read(paddle_right)              == HIGH) {
     write_settings_to_eeprom();
   }
 
@@ -1261,6 +1262,152 @@ void service_ptt_interlock() {
 }
 #endif // FEATURE_PTT_INTERLOCK
 
+#ifdef FEATURE_CAPACITIVE_PADDLE_PINS
+// ---------------------------------------------------------------------------
+// read_capacitive_pin() — measure self-capacitance on a paddle pin.
+//
+// Ported from http://playground.arduino.cc/Code/CapacitiveSensor (Mario Becker,
+// Alan Chatham, Paul Stoffregen, Casey Rodarmor). Discharges the pin, then times
+// (in CPU cycles) how long it takes to charge back up to HIGH through the AVR's
+// internal pull-up — a bare pin charges almost instantly, a fingertip's
+// capacitance slows it down. Self-contained: no external library, no second
+// (send) pin. The loop is manually unrolled rather than iterative because each
+// extra instruction between pin reads measurably reduces sensitivity.
+// ---------------------------------------------------------------------------
+uint8_t read_capacitive_pin(int pin_to_measure) {
+
+  volatile uint8_t* port;
+  volatile uint8_t* ddr;
+  volatile uint8_t* pin;
+
+  byte bitmask;
+  port = portOutputRegister(digitalPinToPort(pin_to_measure));
+  ddr  = portModeRegister(digitalPinToPort(pin_to_measure));
+  bitmask = digitalPinToBitMask(pin_to_measure);
+  pin  = portInputRegister(digitalPinToPort(pin_to_measure));
+
+  // Discharge the pin first by setting it low and output
+  *port &= ~(bitmask);
+  *ddr  |= bitmask;
+  delay(1);
+  // Prevent the timer IRQ from disturbing our measurement
+  noInterrupts();
+  // Make the pin an input with the internal pull-up on
+  *ddr  &= ~(bitmask);
+  *port |= bitmask;
+
+  uint8_t cycles = 17;
+  if (*pin & bitmask) {
+    cycles = 0;
+  } else {
+    if (*pin & bitmask) {
+      cycles =  1;
+    } else {
+      if (*pin & bitmask) {
+        cycles =  2;
+      } else {
+        if (*pin & bitmask) {
+          cycles =  3;
+        } else {
+          if (*pin & bitmask) {
+            cycles =  4;
+          } else {
+            if (*pin & bitmask) {
+              cycles =  5;
+            } else {
+              if (*pin & bitmask) {
+                cycles =  6;
+              } else {
+                if (*pin & bitmask) {
+                  cycles =  7;
+                } else {
+                  if (*pin & bitmask) {
+                    cycles =  8;
+                  } else {
+                    if (*pin & bitmask) {
+                      cycles =  9;
+                    } else {
+                      if (*pin & bitmask) {
+                        cycles = 10;
+                      } else {
+                        if (*pin & bitmask) {
+                          cycles = 11;
+                        } else {
+                          if (*pin & bitmask) {
+                            cycles = 12;
+                          } else {
+                            if (*pin & bitmask) {
+                              cycles = 13;
+                            } else {
+                              if (*pin & bitmask) {
+                                cycles = 14;
+                              } else {
+                                if (*pin & bitmask) {
+                                  cycles = 15;
+                                } else {
+                                  if (*pin & bitmask) {
+                                    cycles = 16;
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // End of timing-critical section
+  interrupts();
+
+  // Discharge the pin again by setting it low and output. It's important to
+  // leave the pin low so that touching two sensors doesn't transfer charge
+  // between them through the body.
+  *port &= ~(bitmask);
+  *ddr  |= bitmask;
+
+  return cycles;
+
+}
+#endif // FEATURE_CAPACITIVE_PADDLE_PINS
+
+// ---------------------------------------------------------------------------
+// paddle_pin_read() — read a paddle pin, transparently substituting capacitive
+// touch sensing for a mechanical contact read when FEATURE_CAPACITIVE_PADDLE_PINS
+// is enabled. All paddle reads in this file go through this function so that
+// capacitive sensing applies consistently (normal keying, factory reset squeeze,
+// beacon-at-boot, memory programming, command mode, tune).
+//
+// With the feature off, this is just digitalRead(pin_to_read).
+// With it on: if capacitive_paddle_pin_inhibit_pin is configured and reads HIGH,
+// fall back to a plain digitalRead (lets you switch back to mechanical paddles
+// without reflashing). Otherwise, treat the paddle as pressed (LOW) once its
+// measured capacitance exceeds capacitance_threshold.
+// ---------------------------------------------------------------------------
+int paddle_pin_read(int pin_to_read) {
+
+  #ifndef FEATURE_CAPACITIVE_PADDLE_PINS
+    return digitalRead(pin_to_read);
+  #else
+    if (capacitive_paddle_pin_inhibit_pin) {
+      if (digitalRead(capacitive_paddle_pin_inhibit_pin) == HIGH) {
+        return digitalRead(pin_to_read);
+      }
+    }
+    if (read_capacitive_pin(pin_to_read) > capacitance_threshold) return LOW;
+    else return HIGH;
+  #endif
+
+}
+
 // ---------------------------------------------------------------------------
 
 void check_paddles() {
@@ -1292,8 +1439,8 @@ void check_paddles() {
   static unsigned int squeeze_counter = 0;  // elements sent while both paddles held; reset when either released
   #endif
 
-  byte left  = digitalRead(paddle_left);
-  byte right = digitalRead(paddle_right);
+  byte left  = paddle_pin_read(paddle_left);
+  byte right = paddle_pin_read(paddle_right);
 
   // If automatic sending is in progress and a paddle is hit, abort the buffer
   if ((cw_scheduler.current_sending_type == AUTOMATIC_SENDING) &&
@@ -2775,8 +2922,8 @@ void service_memory_program() {
       if (read_analog_buttons() == 0) { mem_prog_start_exit(); break; }
       #endif
 
-      byte left  = digitalRead(paddle_left);
-      byte right = digitalRead(paddle_right);
+      byte left  = paddle_pin_read(paddle_left);
+      byte right = paddle_pin_read(paddle_right);
 
       // Squeeze with nothing keyed in current char → end of message
       if ((left == LOW) && (right == LOW) && !mem_prog_paddle_hit) {
@@ -3365,8 +3512,8 @@ void service_command_mode() {
           command_mode_idle_since      = millis();
         }
 
-        byte left  = digitalRead(paddle_left);
-        byte right = digitalRead(paddle_right);
+        byte left  = paddle_pin_read(paddle_left);
+        byte right = paddle_pin_read(paddle_right);
 
         if (left == LOW) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
@@ -3455,8 +3602,8 @@ void service_command_mode() {
       if ((cw_scheduler.cw_scheduler_state       == IDLE) &&
           (cw_scheduler.element_send_buffer_bytes == 0)) {
 
-        byte left  = digitalRead(paddle_left);
-        byte right = digitalRead(paddle_right);
+        byte left  = paddle_pin_read(paddle_left);
+        byte right = paddle_pin_read(paddle_right);
 
         if ((left == LOW) && (right == LOW)) {
           // Squeeze = done (also works as exit for full command mode W command)
@@ -3489,8 +3636,8 @@ void service_command_mode() {
     // --- Tune (T command) ---
 
     case CMD_TUNE: {
-      byte left  = digitalRead(paddle_left);
-      byte right = digitalRead(paddle_right);
+      byte left  = paddle_pin_read(paddle_left);
+      byte right = paddle_pin_read(paddle_right);
 
       if ((left == LOW) && (right == LOW)) {
         // Squeeze = exit tune
@@ -3534,8 +3681,8 @@ void service_command_mode() {
           command_mode_idle_since      = millis();
         }
 
-        byte left  = digitalRead(paddle_left);
-        byte right = digitalRead(paddle_right);
+        byte left  = paddle_pin_read(paddle_left);
+        byte right = paddle_pin_read(paddle_right);
 
         if (left == LOW) {
           send_dit(&cw_scheduler, MANUAL_SENDING);
