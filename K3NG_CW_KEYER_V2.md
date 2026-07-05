@@ -201,7 +201,7 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 
 ### Timing and Keying Options
 
-- [ ] `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` — CMOS Super Keyer Iambic B timing
+- [x] `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` — CMOS Super Keyer Iambic B timing
 - [ ] `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` — adjustable dah-to-dit ratio
 - [ ] `FEATURE_FARNSWORTH` — Farnsworth sending speed
 - [ ] `FEATURE_QLF` — QLF (poor fist) mode
@@ -247,7 +247,7 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 
 - [ ] `FEATURE_SLEEP` — sleep mode after inactivity (not compatible with Due)
 - [ ] `FEATURE_SEQUENCER` — TX sequencer output pins
-- [ ] `FEATURE_CAPACITIVE_PADDLE_PINS` — capacitive touch paddle pins
+- [x] `FEATURE_CAPACITIVE_PADDLE_PINS` — capacitive touch paddle pins
 - [ ] `FEATURE_PTT_INTERLOCK` — PTT interlock input pin
 - [ ] `FEATURE_LED_RING` — Mayhew Labs LED ring
 - [ ] `FEATURE_DEAD_OP_WATCHDOG` — watchdog timer

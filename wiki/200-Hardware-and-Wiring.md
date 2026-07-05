@@ -66,6 +66,26 @@ A 1kΩ to 10kΩ potentiometer works well. Enable `FEATURE_POTENTIOMETER` and set
 
 **Important:** Do not enable `FEATURE_POTENTIOMETER` unless a potentiometer is actually connected — a floating analog input will cause the WPM to jump around.
 
+## Capacitive Touch Paddles
+
+`FEATURE_CAPACITIVE_PADDLE_PINS` lets `paddle_left`/`paddle_right` sense finger proximity through a touch plate instead of a mechanical switch contact. Remove the bypass capacitors normally fitted on the paddle lines — the pins measure their own self-capacitance directly, so no send pin, receive pin, or external library is needed. Wire a conductive touch plate (or bare pad) to `paddle_left`/`paddle_right` in place of the mechanical contact; the pin's existing internal pullup does the rest.
+
+Enable in `keyer_2_features_and_options.h`:
+
+```cpp
+#define FEATURE_CAPACITIVE_PADDLE_PINS
+```
+
+Sensitivity threshold, in `keyer_settings.h`:
+
+```cpp
+#define capacitance_threshold  2   // higher = less sensitive
+```
+
+**Optional inhibit pin:** to switch between capacitive and mechanical paddles without reflashing, wire a switch to `capacitive_paddle_pin_inhibit_pin` in `keyer_2_pin_settings.h` (`0` = always capacitive). Pulling that pin HIGH forces a normal mechanical-contact read instead.
+
+**Note:** every paddle read in the keyer — normal keying, factory reset squeeze, beacon-at-boot, memory programming, command mode, tune — goes through the same `paddle_pin_read()` function, so capacitive sensing applies consistently everywhere, not just during normal sending.
+
 ## PTT Interlock Input
 
 `FEATURE_PTT_INTERLOCK` provides a dedicated input pin that, when asserted, suppresses the PTT output while still allowing the TX key line to go active. This is useful in SO2R setups, interlock-with-another-radio, or any situation where an external circuit needs to block your transmitter's PTT without stopping the CW key line.

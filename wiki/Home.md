@@ -23,6 +23,7 @@ A ground-up rewrite of the [K3NG CW Keyer](https://github.com/k3ng/k3ng_cw_keyer
 - Dead Operator Watchdog
 - Straight key with character echo
 - Paddle character echo to serial
+- Capacitive touch paddle input (no mechanical contacts required)
 - Beacon / fox mode
 - Winkey v2 protocol emulation
 - Full serial CLI (`\W`, `\F`, `\S`, etc.)
