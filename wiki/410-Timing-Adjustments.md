@@ -48,7 +48,7 @@ The ratio of dah duration to dit duration. Standard CW is 3:1.
 - `\J250` sets 2.5:1 (some operators prefer this at high speeds)
 - Range: 151–809 (bounds are exclusive; exactly 150 or 810 are rejected)
 
-With `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, the ratio can auto-adjust with WPM (`\^` to toggle). **This feature ships commented out by default** — without it, `\J` has no ratio-setting effect of its own; the CLI's `case 'J'` falls through into the Farnsworth handler, so `\J300` currently prompts for a Farnsworth WPM instead.
+`\J` itself works regardless of this flag — it sets the ratio directly, and the underlying config field and CW timing engine are unconditional. With `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` enabled (**ships commented out by default**), the ratio can additionally auto-adjust with WPM (`\^` to toggle).
 
 ## Sidetone Frequency
 

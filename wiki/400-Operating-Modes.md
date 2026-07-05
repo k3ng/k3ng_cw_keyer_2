@@ -51,7 +51,7 @@ By default the dah/dit ratio is fixed at 3:1 (300). With dynamic ratio enabled, 
 - `\J###` sets a fixed ratio (151–809, where 300 = 3:1 — bounds are exclusive, so exactly 150 or 810 are rejected)
 - `\^` toggles dynamic auto-adjustment on/off
 
-Requires `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, which **ships commented out by default**. With it disabled, `case 'J'` in the CLI has no effect of its own — it falls through into the Farnsworth handler (`\M`), so typing `\J300` currently prompts for a Farnsworth WPM instead of setting the ratio. Enable `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` to get real `\J`/`\^` behavior.
+`\J` works regardless of this flag, since the underlying config field and CW timing engine are unconditional. `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` (**ships commented out by default**) only gates the `\^` auto-adjust toggle and its WPM-based recalculation.
 
 ---
 

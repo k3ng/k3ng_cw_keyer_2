@@ -2324,8 +2324,9 @@ void process_cli_command(char cmd) {
     case 'C': // Single paddle
     case 'D': // Ultimatic
     case 'E': // Set serial number
-    #ifdef FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
-    case 'J': {
+    case 'J': { // \J### — set dah/dit ratio; the underlying config field and CW
+                // timing engine are unconditional, so this works regardless of
+                // whether FEATURE_DYNAMIC_DAH_TO_DIT_RATIO is enabled.
       int new_ratio = serial_get_number_input(3, dah_to_dit_ratio_lower_limit, dah_to_dit_ratio_upper_limit);
       if (new_ratio >= dah_to_dit_ratio_lower_limit) {
         configuration.dah_to_dit_ratio = (unsigned int)new_ratio;
@@ -2335,14 +2336,13 @@ void process_cli_command(char cmd) {
       }
       break;
     }
+    #ifdef FEATURE_DYNAMIC_DAH_TO_DIT_RATIO
     case '^':
       configuration.dynamic_dah_to_dit_ratio_active = !configuration.dynamic_dah_to_dit_ratio_active;
       config_dirty = 1;
       primary_serial_port->print(F("Dynamic dah/dit: O"));
       primary_serial_port->println(configuration.dynamic_dah_to_dit_ratio_active ? F("n") : F("ff"));
       break;
-    #else
-    case 'J': // Dah/dit ratio (FEATURE_DYNAMIC_DAH_TO_DIT_RATIO not enabled)
     #endif
     #ifdef FEATURE_FARNSWORTH
     case 'M': // \M### — set Farnsworth inter-char WPM (0 = disable)
@@ -2364,7 +2364,7 @@ void process_cli_command(char cmd) {
     #endif // FEATURE_POTENTIOMETER
     #ifdef FEATURE_ADDITIONAL_TX_AND_PTT_PINS
     case 'X': { // Switch TX — \X1 through \X6
-      int tx_num = serial_get_number_input(1, 1, number_of_transmitters);
+      int tx_num = serial_get_number_input(1, 0, number_of_transmitters + 1);
       if (tx_num < 1) {
         primary_serial_port->println(F("TX# out of range"));
       } else {

@@ -28,7 +28,7 @@ Press **ESC** at any time to clear the send buffer and stop sending.
 | `\M###` | Set Farnsworth inter-character WPM (0 = disable; must be higher than sending WPM) | `FEATURE_FARNSWORTH` |
 | `\z` | Toggle autospace on/off — **unreachable**: the CLI uppercases command chars, so `\z` always resolves to `\Z` below | `FEATURE_AUTOSPACE` (disabled by default) |
 | `\Z###` | Set autospace timing factor × 100 (e.g. `\Z200` = 2.0 dits) | `FEATURE_AUTOSPACE` (disabled by default) |
-| `\J###` | Set dah/dit ratio × 100 (300 = 3:1, range 151–809) — with the flag disabled, `\J` falls through to the Farnsworth prompt instead | `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` (disabled by default) |
+| `\J###` | Set dah/dit ratio × 100 (300 = 3:1, range 151–809) — works regardless of the flag below, since the underlying config field and CW timing engine are unconditional | — |
 | `\^` | Toggle dynamic dah/dit ratio auto-adjustment | `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` (disabled by default) |
 | `\&` | Toggle CMOS Super Keyer Iambic B timing on/off | `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` |
 | `\%#` | Set CMOS Super Keyer timing threshold %, single digit only (0–9, despite the two-digit notation) | `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` |
@@ -52,7 +52,7 @@ Press **ESC** at any time to clear the send buffer and stop sending.
 | Command | Action | Feature flag |
 |---------|--------|--------------|
 | `\T` | Tune mode (TX until any key pressed) | — |
-| `\X#` | Switch active TX line (1 to `number_of_transmitters`, 2 by default in `keyer_settings.h` — but bounds are exclusive, so with the stock default of 2, no value actually validates; increase `number_of_transmitters` to use this) | `FEATURE_ADDITIONAL_TX_AND_PTT_PINS` |
+| `\X#` | Switch active TX line (1 to `number_of_transmitters`, 2 by default in `keyer_settings.h`) | `FEATURE_ADDITIONAL_TX_AND_PTT_PINS` |
 
 ---
 
