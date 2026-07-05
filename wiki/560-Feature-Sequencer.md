@@ -1,6 +1,6 @@
 # Feature: TX/RX Sequencer
 
-`FEATURE_SEQUENCER`
+`FEATURE_SEQUENCER` — **ships commented out by default**. It's fully implemented, but none of this code is compiled in until you uncomment it in `keyer_2_features_and_options.h`.
 
 ## Overview
 
@@ -95,4 +95,4 @@ Delays of 0 ms cause the pin to transition on the very next `loop()` iteration a
 
 ## Default Values
 
-All delays default to 0 ms. The sequencer feature is fully operational but has no effect until at least one pin is defined and timing is configured.
+All delays default to 0 ms. Once `FEATURE_SEQUENCER` is enabled, it's fully operational but has no effect until at least one pin is defined and timing is configured.

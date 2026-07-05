@@ -62,19 +62,21 @@ See [[Buttons|530-Feature-Buttons]] for full wiring details. The button array us
   GND ─── Potentiometer other end
 ```
 
-A 1kΩ to 10kΩ potentiometer works well. Enable `FEATURE_POTENTIOMETER` and set `potentiometer A0` in `keyer_2_pin_settings.h`.
+A 1kΩ to 10kΩ potentiometer works well. `FEATURE_POTENTIOMETER` ships **active by default** at `potentiometer A0` in `keyer_2_pin_settings.h`, and the pot is read from first boot (`pot_activated` is set unconditionally in `setup()`).
 
-**Important:** Do not enable `FEATURE_POTENTIOMETER` unless a potentiometer is actually connected — a floating analog input will cause the WPM to jump around.
+**Important:** If you're not wiring up a potentiometer, comment out `FEATURE_POTENTIOMETER` in `keyer_2_features_and_options.h` before flashing — a floating analog input on A0 will otherwise cause the WPM to jump around, even on an otherwise-minimal build.
 
 ## Capacitive Touch Paddles
 
 `FEATURE_CAPACITIVE_PADDLE_PINS` lets `paddle_left`/`paddle_right` sense finger proximity through a touch plate instead of a mechanical switch contact. Remove the bypass capacitors normally fitted on the paddle lines — the pins measure their own self-capacitance directly, so no send pin, receive pin, or external library is needed. Wire a conductive touch plate (or bare pad) to `paddle_left`/`paddle_right` in place of the mechanical contact; the pin's existing internal pullup does the rest.
 
-Enable in `keyer_2_features_and_options.h`:
+**This feature ships active by default** in `keyer_2_features_and_options.h` — every stock build reads the paddles capacitively unless you comment it out:
 
 ```cpp
 #define FEATURE_CAPACITIVE_PADDLE_PINS
 ```
+
+If you're wiring up ordinary mechanical paddles, you can comment this line out — or leave it active and use the inhibit pin below to force mechanical-contact reads instead.
 
 Sensitivity threshold, in `keyer_settings.h`:
 
@@ -89,6 +91,8 @@ Sensitivity threshold, in `keyer_settings.h`:
 ## PTT Interlock Input
 
 `FEATURE_PTT_INTERLOCK` provides a dedicated input pin that, when asserted, suppresses the PTT output while still allowing the TX key line to go active. This is useful in SO2R setups, interlock-with-another-radio, or any situation where an external circuit needs to block your transmitter's PTT without stopping the CW key line.
+
+**This feature ships commented out by default.** It's fully implemented — uncomment `FEATURE_PTT_INTERLOCK` in `keyer_2_features_and_options.h` before any of the following applies; none of this code is compiled into a stock build.
 
 Configure the pin in `keyer_2_pin_settings.h`:
 

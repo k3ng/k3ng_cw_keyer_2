@@ -41,7 +41,7 @@ If you are running low on flash, disable features you don't use in `keyer_2_feat
 
 ## First Boot
 
-After uploading, open the serial monitor at **115200 baud** with **line ending: Carriage Return** (important — the CLI expects CR). You should see:
+After uploading, open the serial monitor at **115200 baud**. Either line ending setting works — the CLI's input parser accepts both Carriage Return and Newline. You should see:
 
 ```
 K3NG CW Keyer v2 by K3NG

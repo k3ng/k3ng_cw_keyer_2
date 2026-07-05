@@ -6,8 +6,8 @@ A factory reset restores all settings to their compiled-in defaults and clears a
 
 1. Hold **both paddles** (dit and dah) simultaneously
 2. While holding both paddles, **apply power** (plug in USB or power supply)
-3. Keep holding until you hear **three boop-beep pairs** (low-high-low-high-low-high)
-4. Release the paddles
+3. **Release both paddles** — the keyer blocks and waits for release before doing anything else
+4. Immediately after release, you'll hear **three beep-boop pairs** (high-low × 3) confirming the reset completed
 
 The keyer confirms completion on the serial port:
 ```

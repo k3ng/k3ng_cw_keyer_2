@@ -2,9 +2,9 @@
 
 ## Speed Potentiometer
 
-`FEATURE_POTENTIOMETER`
+`FEATURE_POTENTIOMETER` — **active by default**.
 
-A linear potentiometer connected to an analog pin provides continuous WPM adjustment.
+A linear potentiometer connected to an analog pin provides continuous WPM adjustment. Because this feature ships enabled, a stock build with nothing wired to A0 will see erratic WPM from the floating pin — comment out `FEATURE_POTENTIOMETER` if you're not using a pot.
 
 **Wiring:**
 ```
@@ -22,8 +22,8 @@ A 1kΩ to 10kΩ pot works well.
 
 **Configuration** in `keyer_settings.h`:
 ```cpp
-#define pot_wpm_low_value   5    // WPM at pot minimum
-#define pot_wpm_high_value  35   // WPM at pot maximum
+#define initial_pot_wpm_low_value   13   // WPM at pot minimum
+#define initial_pot_wpm_high_value  35   // WPM at pot maximum
 ```
 
 Toggle the pot active/inactive with `\V`. When inactive, speed is controlled by CLI/command mode only. This is useful when you want to set a precise speed without the pot overriding it.
@@ -32,7 +32,7 @@ Toggle the pot active/inactive with `\V`. When inactive, speed is controlled by 
 
 ## Rotary Encoder
 
-`FEATURE_ROTARY_ENCODER`
+`FEATURE_ROTARY_ENCODER` — **ships commented out by default**; uncomment it in `keyer_2_features_and_options.h` to compile it in.
 
 A rotary encoder provides click-by-click WPM adjustment.
 

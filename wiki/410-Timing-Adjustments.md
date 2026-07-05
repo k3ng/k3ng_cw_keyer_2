@@ -29,16 +29,16 @@ Typical values: 10–100 ms for SSB rigs; longer for some linears.
 The space between words, in dit units. Standard CW is 7 dit units. Increasing this value slows the effective word rate without changing character speed.
 
 - Default: 7
-- Range: 1–9
-- CLI: `\Y#`
+- Range: 1–99
+- CLI: `\Y##`
 
 ## Farnsworth Timing
 
 Farnsworth timing sends characters at full speed but inserts extra space between characters and words so the overall word-per-minute rate is lower. This is useful for training — you learn to recognize characters at real speed while having more time to write them down.
 
-Set with `\M###` (0 = disabled). The Farnsworth WPM must be lower than the current sending WPM to have any effect.
+Set with `\M###` (0 = disabled). The Farnsworth WPM must be **higher** than the current sending WPM to have any effect — the code only applies the extra inter-character spacing when `wpm_farnsworth > wpm`.
 
-Requires `FEATURE_FARNSWORTH`.
+Requires `FEATURE_FARNSWORTH` (active by default).
 
 ## Dah/Dit Ratio
 
@@ -46,21 +46,21 @@ The ratio of dah duration to dit duration. Standard CW is 3:1.
 
 - `\J300` sets 3:1 (default)
 - `\J250` sets 2.5:1 (some operators prefer this at high speeds)
-- Range: 150–810
+- Range: 151–809 (bounds are exclusive; exactly 150 or 810 are rejected)
 
-With `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, the ratio can auto-adjust with WPM (`\^` to toggle).
+With `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, the ratio can auto-adjust with WPM (`\^` to toggle). **This feature ships commented out by default** — without it, `\J` has no ratio-setting effect of its own; the CLI's `case 'J'` falls through into the Farnsworth handler, so `\J300` currently prompts for a Farnsworth WPM instead.
 
 ## Sidetone Frequency
 
 - Default: 600 Hz
 - CLI: `\F####` (e.g. `\F700` for 700 Hz)
-- Range: limited by Arduino `tone()` function (roughly 31–65535 Hz; practical range 200–2000 Hz)
+- Range: 100–9999 Hz (limited by the CLI's 4-digit input parser, not by `tone()` itself)
 
 ## Autospace
 
 Autospace automatically inserts a letterspace pause after each manually-keyed dit or dah when the operator pauses — that is, when neither paddle is pressed after the element finishes. This cleans up sending by ensuring clean character boundaries even when the operator's timing is slightly loose.
 
-Requires `FEATURE_AUTOSPACE`.
+Requires `FEATURE_AUTOSPACE`, which **ships commented out by default**.
 
 **How it works:** After a dit or dah completes its normal 1-dit inter-element space, the scheduler checks whether another element has been queued. If not, it waits an additional `autospace_timing_factor` dits before advancing. At the default of 2.0, total inter-character space becomes 3 dits — the standard CW letterspace.
 
@@ -69,7 +69,7 @@ If the operator presses the next paddle during the autospace window, the extra w
 | Setting | Value |
 |---------|-------|
 | Default | Off |
-| CLI toggle | `\z` |
+| CLI toggle | `\z` — **currently unreachable**: the CLI uppercases command characters before dispatch, so `\z` always resolves to the `\Z` case (set factor) below, never the toggle |
 | CLI factor | `\Z###` (integer × 100; e.g. `\Z200` = 2.0 dits) |
 | Default factor | 200 (2.0 dits extra) |
 | Factor range | 10–999 |

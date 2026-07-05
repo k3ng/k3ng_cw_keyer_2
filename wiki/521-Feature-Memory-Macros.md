@@ -28,13 +28,14 @@ Every time memory 1 plays, it sends "CQ CQ TEST DE K3NG" followed by the current
 | `\Y#` | Increase speed by # WPM |
 | `\Z#` | Decrease speed by # WPM |
 | `\F####` | Set sidetone to #### Hz |
-| `\D###` | Delay ### milliseconds |
-| `\T###` | Key TX for ### milliseconds (timed carrier) |
+| `\D###` | Delay ### seconds (max 255) |
+| `\T###` | Key TX for ### seconds (PTT on, delay, PTT off) |
 | `\U` | Activate PTT |
 | `\V` | Deactivate PTT |
-| `\I#` | Insert (call) memory # then return here |
-| `\0`–`\9` | Jump to memory # (does not return) |
-| `\X#` | Switch to transmitter # |
+| `\I#` | Insert memory # into playback, then continue |
+| `\0`–`\9` | Insert memory # into playback, then continue (same mechanism as `\I#`, just addressed by a bare digit) |
+
+`\X`, along with `\Q`, `\R`, `\H`, `\L`, and `\+`, is not implemented as a memory macro yet — bytes for these are silently skipped during playback. (There is a CLI command `\X#` for switching transmitters, but it only works typed directly at the serial prompt, not embedded inside a memory.)
 
 ## Serial Numbers
 
@@ -46,10 +47,10 @@ The serial number starts at 1 and increments with each `\E` or `\C`. It is store
 
 ## Nested Memory Calls
 
-`\I#` inserts another memory into the current playback and then continues where it left off. This is different from `\0`–`\9` which jump and do not return. Useful for building compound messages from reusable parts.
+`\I#` inserts another memory into the current playback and then continues where it left off. `\0`–`\9` do exactly the same thing — insert-and-continue, not jump-and-abandon — they're just addressed with a bare digit instead of `\I` plus a digit. Useful for building compound messages from reusable parts.
 
 ## Speed Changes in Macros
 
-Speed changes made by `\W`, `\Y`, or `\Z` inside a memory are temporary — they apply only during playback. The keyer's configured WPM is restored after the memory finishes.
+Speed changes made by `\W`, `\Y`, or `\Z` inside a memory set `configuration.wpm` directly and **persist** after the memory finishes — there's no save/restore mechanism, so the new speed stays in effect (in RAM) until you change it again or power-cycle the keyer.
 
-_Note: speed changes are not saved to EEPROM during memory playback to avoid excessive EEPROM writes, especially in beacon mode._
+_Note: these speed changes are never written to EEPROM, in memory playback or otherwise — the macro handler doesn't mark settings dirty. This avoids excessive EEPROM writes (especially useful in beacon mode) but also means the speed reverts to the EEPROM-saved value on the next boot._

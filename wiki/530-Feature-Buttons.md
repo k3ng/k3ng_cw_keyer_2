@@ -57,7 +57,7 @@ In `keyer_2_pin_settings.h`:
 
 ## ADC Reading
 
-The keyer uses a 19-sample exponential moving average (EMA) to filter the ADC reading, which eliminates false triggers from electrical noise or button bounce. Button thresholds are calculated from the R1/R2 values at startup.
+The keyer uses a 19-sample exponential moving average (EMA) to filter the ADC reading, which eliminates false triggers from electrical noise or button bounce. Button thresholds are recalculated from the R1/R2 values on every poll (not cached at startup), so R1/R2 can be changed without any separate re-initialization step.
 
 ## Adding More Buttons
 

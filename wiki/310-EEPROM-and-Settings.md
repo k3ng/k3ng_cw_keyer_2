@@ -11,16 +11,16 @@ Settings are **not** written on every change — EEPROM has a limited write life
 ## EEPROM Layout
 
 ```
-Byte 0                    : Magic number (validates that EEPROM contains valid data)
-Bytes 1 … sizeof(config)  : config_struct (WPM, sidetone, PTT timing, etc.)
-Bytes sizeof(config)+1 … +5 : Reserved (version headroom)
+Byte 0                       : Magic number (validates that EEPROM contains valid data)
+Bytes 1 … sizeof(config)     : config_struct (WPM, sidetone, PTT timing, etc.)
+Bytes sizeof(config)+1 … +4  : Reserved (4 bytes headroom)
 Bytes memory_area_start … EEPROM.length()-1 : CW memory slots
 ```
 
-The memory area is divided equally among all configured memories (`number_of_memories` in `keyer_settings.h`). Each slot is terminated by a `0xFF` sentinel byte. On a standard Arduino Uno/Nano with 1024 bytes of EEPROM and `sizeof(config_struct)` ≈ 30 bytes:
+`memory_area_start` is computed as `sizeof(config_struct) + 5` (`keyer_settings.h`) — it isn't a fixed number, since `config_struct` grows as features that add their own config fields (e.g. `FEATURE_SEQUENCER`, `FEATURE_AUTOSPACE`) are enabled. The memory area is divided equally among all configured memories (`number_of_memories` in `keyer_settings.h`). Each slot is terminated by a `0xFF` sentinel byte. On a standard Arduino Uno/Nano with 1024 bytes of EEPROM and the default feature set, `sizeof(config_struct)` is 21 bytes:
 
-- Memory area starts at approximately byte 35
-- With 3 memories: each slot ≈ 330 bytes (~330 characters)
+- Memory area starts at byte 26
+- With 3 memories: each slot ≈ 332 bytes (~332 characters)
 
 ## First Boot / Magic Number Mismatch
 
@@ -39,7 +39,7 @@ Settings saved to EEPROM
 
 ## Factory Reset
 
-Squeeze both paddles simultaneously at power-up and hold until you hear three boop-beep pairs. This writes factory defaults and clears all memories. See [[Factory Reset|800-Factory-Reset]].
+Squeeze both paddles simultaneously at power-up, then release them; three beep-boop pairs confirm the reset completed. This writes factory defaults and clears all memories. See [[Factory Reset|800-Factory-Reset]] for the exact sequence.
 
 ## Viewing Current Settings
 

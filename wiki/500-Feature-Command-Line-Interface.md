@@ -4,15 +4,17 @@
 
 ## Overview
 
-The CLI provides full keyer control over a serial connection (USB). Connect at **115200 baud** with carriage return line endings.
+The CLI provides full keyer control over a serial connection (USB). Connect at **115200 baud**.
 
 - Type text directly to queue it for CW sending
 - Prefix commands with a backslash `\`
 - Commands are case-insensitive
 
+Single-character commands (like `\A` or `\S`) execute the instant the character after `\` is received — no line ending needed. Commands that take a numeric argument (like `\W###`) read digits until you press Enter; either Carriage Return or Newline terminates them.
+
 ## Using the Arduino Serial Monitor
 
-Set the baud rate to 115200 and the line ending to **Carriage Return**. Without CR, commands won't execute.
+Set the baud rate to 115200. Either line ending setting works.
 
 ## Sending CW Text
 
@@ -34,11 +36,11 @@ See [[Command Reference|700-Command-Reference]] for the full table.
 
 ## Multiple Serial Ports
 
-The keyer supports multiple simultaneous serial ports. Each port can be independently configured as CLI or Winkey mode. The primary port (port 0) defaults to CLI at 115200 baud. Additional ports are defined in `keyer_2_serial.h`.
+The keyer supports multiple simultaneous serial ports. Each port can be independently configured as CLI or Winkey mode. The primary port (port 0) defaults to CLI at 115200 baud. Additional ports are defined in `keyer_settings.h` (`keyer_2_serial.h` just holds the port struct and mode constants).
 
 ## Status Display
 
-`\S` prints a full status report:
+`\S` prints a status report built one line at a time from whichever features are compiled in — each line is gated by its own `#ifdef`, so the exact output depends on `keyer_2_features_and_options.h`. With the currently-shipped default feature set, it looks like this:
 
 ```
 Mode: Iambic B
@@ -46,18 +48,20 @@ Paddle: Normal
 WPM: 20
 Sidetone: 600 Hz
 TX: Enabled
+Active TX line: 1
 PTT lead: 10 ms
 PTT tail: 10 ms
 Wordspace: 7
 Farnsworth: Disabled
-Autospace: Off  Factor: 2.00
-Dah/dit ratio: 3.00 (dynamic)
-Sequencer (ms):
-  #  PTT->Active  PTT->Inactive
-  1  0          0
-  ...
+Dah/dit ratio: 3.00
+CMOS Super Keyer: Off (33%)
+Paddle echo: On
+Beacon: Inactive  Boot: Disabled
+Pot: Active  WPM range: 13-35
 Memories:
-  1: CQ CQ CQ DE K3NG
+  1: (empty)
   2: (empty)
   3: (empty)
 ```
+
+Enabling other features (e.g. `FEATURE_AUTOSPACE`, `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, `FEATURE_SEQUENCER`) adds their own status lines — see `serial_status()` in `k3ng_keyer_2.ino` for the complete set.

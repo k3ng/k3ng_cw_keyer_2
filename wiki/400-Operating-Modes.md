@@ -22,7 +22,9 @@ Set with `\G` (G for "bug").
 
 Both paddle inputs are treated as a single straight key input. Key down = TX on; key up = TX off. No automatic element timing.
 
-Set with command mode straight key selection. A dedicated straight key pin can also be configured independently — see [[Straight Key Feature|590-Feature-Straight-Key]].
+**Currently unreachable via CLI or command mode:** the `STRAIGHT` keyer mode exists in the code (`check_paddles()` handles it, and `\S` will print "Straight" if it's ever active) but nothing in the current build actually sets `configuration.keyer_mode = STRAIGHT` — there is no CLI command or command-mode option that selects it.
+
+For straight-key operation today, use a dedicated straight key on its own pin instead — see `FEATURE_STRAIGHT_KEY` in [[Configuring the Software|210-Configuring-the-Software]] (ships commented out by default; independent of the paddle-based `STRAIGHT` mode above).
 
 ## Paddle Reverse
 
@@ -36,9 +38,9 @@ Toggle with `\N` or command mode `N`.
 
 An enhancement to Iambic B timing. The keyer starts latching the opposing paddle after a configurable percentage of the current element has elapsed, rather than waiting until the element ends. This allows slightly earlier triggering of the alternating element and can feel more responsive at high speeds.
 
-Enable/disable with `\&`. Set the timing percentage with `\%##` (0–99, default varies).
+Enable/disable with `\&`. Set the timing percentage with `\%#` — despite the two-digit-looking notation, the CLI currently only accepts a **single digit (0–9)**; two-digit values like the compiled-in default of 33% cannot be entered this way once changed.
 
-Requires `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING`.
+Requires `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING` (active by default).
 
 ---
 
@@ -46,10 +48,10 @@ Requires `FEATURE_CMOS_SUPER_KEYER_IAMBIC_B_TIMING`.
 
 By default the dah/dit ratio is fixed at 3:1 (300). With dynamic ratio enabled, the keyer automatically adjusts the ratio based on WPM to match the feel of mechanical keyers at various speeds.
 
-- `\J###` sets a fixed ratio (150–810, where 300 = 3:1)
+- `\J###` sets a fixed ratio (151–809, where 300 = 3:1 — bounds are exclusive, so exactly 150 or 810 are rejected)
 - `\^` toggles dynamic auto-adjustment on/off
 
-Requires `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`.
+Requires `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO`, which **ships commented out by default**. With it disabled, `case 'J'` in the CLI has no effect of its own — it falls through into the Farnsworth handler (`\M`), so typing `\J300` currently prompts for a Farnsworth WPM instead of setting the ratio. Enable `FEATURE_DYNAMIC_DAH_TO_DIT_RATIO` to get real `\J`/`\^` behavior.
 
 ---
 

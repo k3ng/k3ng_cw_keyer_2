@@ -14,7 +14,7 @@ Beacon mode causes the keyer to repeatedly transmit memory 1 in a loop — usefu
 
 ## Exiting Beacon Mode
 
-Press any button or key the paddle. The keyer stops after the current memory playback finishes and returns to normal operation.
+Keying the paddle has **no effect** in beacon mode — paddle input is ignored entirely while `KEYER_BEACON` is active. Press the command button (button 0) to enter command mode, which interrupts beacon playback; exiting command mode returns to normal operation. (Buttons 1–3 just play their memory directly and don't affect beacon mode.)
 
 ## Beacon Memory
 
@@ -29,7 +29,7 @@ Memory 1 is always the beacon memory. Program it with the transmission you want 
 With `OPTION_BEACON_MODE_MEMORY_REPEAT_TIME` enabled, a configurable delay is inserted between successive playbacks. Set the delay in `keyer_settings.h`:
 
 ```cpp
-#define beacon_mode_memory_repeat_time  2000   // ms between repetitions
+#define beacon_memory_repeat_time_ms  3000   // ms between repetitions
 ```
 
 With `OPTION_BEACON_MODE_PTT_TAIL_TIME` enabled, the keyer waits for PTT to drop before starting the next repetition, which prevents a rapid PTT pulse between words.
@@ -45,4 +45,4 @@ This is useful for unattended beacon stations that must resume beacon mode after
 
 ## Memory Macros in Beacon Mode
 
-Memory macros such as `\E` (serial number) and `\D###` (delay) work in beacon mode. However, speed changes made by `\W` macros are **not** saved to EEPROM during beacon playback to avoid wearing out EEPROM locations during long beacon runs.
+Memory macros such as `\E` (serial number) and `\D###` (delay) work in beacon mode. Speed changes made by `\W` macros are never saved to EEPROM — in beacon mode or otherwise, since the macro handler doesn't mark settings dirty — which happens to avoid wearing out EEPROM locations during long beacon runs, but isn't beacon-specific behavior.
