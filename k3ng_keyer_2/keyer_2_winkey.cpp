@@ -55,6 +55,9 @@ static const byte pot_wpm_low_value  = 5;
 static const byte pot_wpm_high_value = 40;
 #endif
 
+// EEPROM dirty flag (defined in .ino) -- OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM
+extern byte config_dirty;
+
 // ---------------------------------------------------------------------------
 // Sidetone table  (index 1-10 -> Hz)
 // ---------------------------------------------------------------------------
@@ -447,7 +450,12 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
   }
 
   if (wk->winkey_status == WINKEY_UNBUFFERED_SPEED_COMMAND) {
-    if (b >= 5 && b <= 99) cfg->wpm = b;
+    if (b >= 5 && b <= 99) {
+      cfg->wpm = b;
+      #ifdef OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM
+      config_dirty = 1;
+      #endif
+    }
     WK_DBG("WK unbuf speed="); WK_DBG_DEC(cfg->wpm); WK_DBG_NL();
     wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
     return;
@@ -459,7 +467,12 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
   }
 
   if (wk->winkey_status == WINKEY_HSCW_COMMAND) {
-    if (b > 1) cfg->wpm = (unsigned int)b * 100 / 5;
+    if (b > 1) {
+      cfg->wpm = (unsigned int)b * 100 / 5;
+      #ifdef OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM
+      config_dirty = 1;
+      #endif
+    }
     wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
     return;
   }
@@ -550,7 +563,12 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
     // Bit 7: paddle-only sidetone flag.  Bits 0-6: frequency index (1-10).
     wk->paddle_only_sidetone = (b & 0x80) ? 1 : 0;
     uint8_t idx = b & 0x7F;
-    if (idx >= 1 && idx <= 10) cfg->sidetone_frequency = wk_sidetone_hz[idx];
+    if (idx >= 1 && idx <= 10) {
+      cfg->sidetone_frequency = wk_sidetone_hz[idx];
+      #ifdef OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM
+      config_dirty = 1;
+      #endif
+    }
     wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
     return;
   }
@@ -628,6 +646,9 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
   }
 
   if (wk->winkey_status == WINKEY_DAH_DIT_RATIO_COMMAND) {
+    // TODO: not yet implemented (byte discarded). When it is, gate the
+    // cfg->dah_to_dit_ratio write with OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM
+    // to match the other Winkey speed/ratio/sidetone commands.
     wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
     return;
   }
