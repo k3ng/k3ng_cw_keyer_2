@@ -313,10 +313,19 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
   if (wk->winkey_status == WINKEY_NO_COMMAND_IN_PROGRESS) {
 
     // CW character (printable ASCII > 31) — v1 lines 11611-11668
+    #ifdef OPTION_WINKEY_IGNORE_LOWERCASE
+    if ((b > 31 && b < 97) || b == 124) {
+      // Lowercase (97-122) excluded from text classification here -- it falls
+      // through to the control-byte switch below where nothing matches (all
+      // cases are <=31), so it's silently ignored. Genuine K1EL Winkeyer
+      // behavior; workaround for SkookumLogger sending lowercase. Byte 124
+      // ('|', half-dit-space) stays recognized as text either way.
+    #else
     if (b > 31) {
 
       // Normalise lowercase (v1 line 11620)
       if (b > 96 && b < 123) b -= 32;
+    #endif
 
       WK_DBG("WK char '"); WK_DBG_CHAR(b);
       WK_DBG("' buf="); WK_DBG_DEC(sched->char_send_buffer_bytes);
@@ -351,6 +360,9 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
     }
 
     // Control byte (<= 31): dispatch on command opcode
+    #ifdef OPTION_WINKEY_STRICT_HOST_OPEN
+    if (wk->host_open || b == 0) {
+    #endif
     switch (b) {
       case 0x00: wk->winkey_status = WINKEY_ADMIN_COMMAND;                break;
       case 0x01: wk->winkey_status = WINKEY_SIDETONE_FREQ_COMMAND;        break;
@@ -412,6 +424,9 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
       case 0x1F: break;  // buffered NOP
       default:   break;
     }
+    #ifdef OPTION_WINKEY_STRICT_HOST_OPEN
+    }
+    #endif
     return;
   }
 

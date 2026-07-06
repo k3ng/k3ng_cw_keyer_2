@@ -149,13 +149,13 @@
 // #define OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP         // Discard errant serial bytes at startup (when ASR is not disabled)
 // #define OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM  // Write non-volatile settings to EEPROM on Winkey set commands
 // #define OPTION_WINKEY_SEND_WORDSPACE_AT_END_OF_BUFFER
-// #define OPTION_WINKEY_STRICT_HOST_OPEN                 // Require Winkey host open command before any other commands
+#define OPTION_WINKEY_STRICT_HOST_OPEN                    // Require Winkey host open command before any other commands
 #define OPTION_WINKEY_SEND_BREAKIN_STATUS_BYTE            // Notify host (0xC6) immediately when a paddle interrupts Winkey-buffered sending
 // #define OPTION_WINKEY_INTERRUPTS_MEMORY_REPEAT         // N/A in v2 -- no memory-repeat mechanism exists yet to interrupt; revisit if one is added
 // #define OPTION_WINKEY_UCXLOG_9600_BAUD                 // UCXLog 9600 baud Winkey mode
 // #define OPTION_WINKEY_2_HOST_CLOSE_NO_SERIAL_PORT_RESET  // Required for Win-Test compatibility
 // #define OPTION_WINKEY_FREQUENT_STATUS_REPORT           // More frequent status reports (for RUMlog/RUMped)
-// #define OPTION_WINKEY_IGNORE_LOWERCASE                 // K1EL Winkeyer behavior: ignore lowercase (workaround for SkookumLogger bug)
+#define OPTION_WINKEY_IGNORE_LOWERCASE                    // K1EL Winkeyer behavior: ignore lowercase (workaround for SkookumLogger bug)
 // #define OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN
 // #define OPTION_WINKEY_SEND_VERSION_ON_HOST_CLOSE
 // #define OPTION_WINKEY_PINCONFIG_PTT_CONTROLS_PTT_LINE  // Winkey PTT setting activates/deactivates PTT line
