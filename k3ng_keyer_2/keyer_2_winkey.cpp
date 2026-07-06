@@ -147,6 +147,9 @@ void winkey_init(WinkeyState* wk, Stream* port) {
   memset(wk, 0, sizeof(WinkeyState));
   wk->port     = port;
   wk->wk2_mode = 2;
+  #ifdef OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP
+  wk->startup_discard_remaining = WINKEY_DISCARD_BYTES_STARTUP;
+  #endif
 }
 
 // ---------------------------------------------------------------------------
@@ -312,6 +315,13 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
                           cw_scheduler_struct* sched,
                           tx_ptt_struct*        ptt_s,
                           config_struct*        cfg) {
+  #ifdef OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP
+  if (wk->startup_discard_remaining) {
+    wk->startup_discard_remaining--;
+    return;   // drop ASR-glitch bytes silently; not treated as host activity
+  }
+  #endif
+
   WK_DBG("WK<< 0x"); WK_DBG_HEX(b);
   if (b > 31 && b < 127) { WK_DBG(" '"); WK_DBG_CHAR(b); WK_DBG("'"); }
   WK_DBG(" state="); WK_DBG_DEC(wk->winkey_status);

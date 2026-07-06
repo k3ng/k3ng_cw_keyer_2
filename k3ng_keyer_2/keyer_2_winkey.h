@@ -54,6 +54,10 @@
 // WK2 1ms minimum wait before sending 0xC0 (matches v1's winkey_c0_wait_time)
 #define WK_C0_WAIT_MS  1
 
+// OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP: bytes to discard the first time any
+// arrive on the port (matches v1's winkey_discard_bytes_startup)
+#define WINKEY_DISCARD_BYTES_STARTUP  3
+
 struct WinkeyState {
   Stream*        port;
   uint8_t        winkey_status;        // WINKEY_* parse-state constant (v1: winkey_status)
@@ -77,6 +81,7 @@ struct WinkeyState {
   uint8_t        winkey_buffer_pointer;  // 0 = append mode; >0 = overwrite mode position
 
   uint8_t        trailing_wordspace_queued;  // OPTION_WINKEY_SEND_WORDSPACE_AT_END_OF_BUFFER one-shot latch
+  uint8_t        startup_discard_remaining;  // OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP: bytes still to discard
 };
 
 void winkey_init(WinkeyState* wk, Stream* port);
