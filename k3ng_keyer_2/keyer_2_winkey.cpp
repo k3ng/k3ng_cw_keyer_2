@@ -241,6 +241,9 @@ void service_winkey_housekeeping(WinkeyState* wk,
 #endif
 
   // Clear flags from v2 scheduler (not used for echo in this implementation)
+  #ifdef OPTION_WINKEY_FREQUENT_STATUS_REPORT
+  if (sched->char_keying_started) wk_send_status(wk);  // extra status byte per char, for RUMlog/RUMped
+  #endif
   if (sched->char_keying_started)  sched->char_keying_started  = 0;
   if (sched->char_keying_finished) sched->char_keying_finished = 0;
 
@@ -262,6 +265,15 @@ void service_winkey_housekeeping(WinkeyState* wk,
   if (wk->sending && is_empty &&
       (wk->port->available() == 0) &&
       ((millis() - wk->last_activity_ms) > WK_C0_WAIT_MS)) {
+
+    #ifdef OPTION_WINKEY_SEND_WORDSPACE_AT_END_OF_BUFFER
+    if (!wk->trailing_wordspace_queued) {
+      wk->trailing_wordspace_queued = 1;
+      add_to_cw_char_send_buffer(sched, ' ');
+      return;   // wait for the extra wordspace to finish keying before re-checking is_empty
+    }
+    wk->trailing_wordspace_queued = 0;  // reset for next send session
+    #endif
 
     WK_DBG("WK hk: empty -> 0xC0 (idle ");
     WK_DBG_DEC(millis() - wk->last_activity_ms);

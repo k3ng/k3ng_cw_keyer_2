@@ -75,6 +75,8 @@ struct WinkeyState {
   // Buffer pointer tracking for POINTER command overwrite/append mode (v1: winkey_buffer_counter/pointer)
   uint8_t        winkey_buffer_counter;  // count of chars added to buffer since last pointer reset
   uint8_t        winkey_buffer_pointer;  // 0 = append mode; >0 = overwrite mode position
+
+  uint8_t        trailing_wordspace_queued;  // OPTION_WINKEY_SEND_WORDSPACE_AT_END_OF_BUFFER one-shot latch
 };
 
 void winkey_init(WinkeyState* wk, Stream* port);
