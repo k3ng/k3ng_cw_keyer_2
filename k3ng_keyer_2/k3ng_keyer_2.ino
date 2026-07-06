@@ -599,6 +599,7 @@ void initialize_state() {
   tx_ptt.key_state         = RIG_RECEIVE;
   tx_ptt.cw_tx_enabled     = 1;
   tx_ptt.sidetone_enabled  = 1;
+  tx_ptt.ptt_line_enabled  = 1;
   tx_ptt.pin_tx            = tx_key_line_1;
   tx_ptt.pin_ptt           = ptt_tx_1;
   tx_ptt.pin_sidetone      = sidetone_line;
@@ -971,7 +972,13 @@ void ptt(struct tx_ptt_struct *tx_ptt_ptr, byte key) {
       #ifdef FEATURE_PTT_INTERLOCK
       if (!ptt_interlock_active) {
       #endif
+        #ifdef OPTION_WINKEY_PINCONFIG_PTT_CONTROLS_PTT_LINE
+        if (tx_ptt_ptr->ptt_line_enabled) {
+          digitalWrite(tx_ptt_ptr->pin_ptt, HIGH);
+        }
+        #else
         digitalWrite(tx_ptt_ptr->pin_ptt, HIGH);
+        #endif
         tx_ptt_ptr->ptt_line_asserted = 1;
         #ifdef FEATURE_SEQUENCER
         sequencer_ptt_activation_time = millis();

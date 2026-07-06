@@ -161,6 +161,14 @@
 // #define OPTION_WINKEY_PINCONFIG_PTT_CONTROLS_PTT_LINE  // Winkey PTT setting activates/deactivates PTT line
 // #define OPTION_WINKEY_PROSIGN_COMPATIBILITY            // Additional character mappings for K1EL Winkey prosigns
 
+// Winkey serial port baud rate. Standard Winkey protocol is 1200 baud;
+// UcxLog reportedly only works reliably with this emulation at 9600.
+#ifdef OPTION_WINKEY_UCXLOG_9600_BAUD
+#define WINKEY_DEFAULT_BAUD 9600
+#else
+#define WINKEY_DEFAULT_BAUD 1200
+#endif
+
 // --- Beacon options ---
 // #define OPTION_BEACON_MODE_MEMORY_REPEAT_TIME          // Space out repeated playback of memory 1 in beacon mode
 // #define OPTION_BEACON_MODE_PTT_TAIL_TIME               // Add PTT tail time between beacon playbacks

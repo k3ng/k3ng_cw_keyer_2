@@ -625,8 +625,14 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
   }
 
   if (wk->winkey_status == WINKEY_SET_PINCONFIG_COMMAND) {
-    // Bit 1: sidetone enable (1=on, 0=muted).  Bit 0: PTT enable (informational; not acted on here).
+    // Bit 1: sidetone enable (1=on, 0=muted).
     ptt_s->sidetone_enabled = (b & 0x02) ? 1 : 0;
+    // Bit 0: PTT enable. Only acted on (gates the actual hardware PTT line in
+    // ptt()) when OPTION_WINKEY_PINCONFIG_PTT_CONTROLS_PTT_LINE is defined;
+    // otherwise informational only, matching v1's default behavior.
+    #ifdef OPTION_WINKEY_PINCONFIG_PTT_CONTROLS_PTT_LINE
+    ptt_s->ptt_line_enabled = (b & 0x01) ? 1 : 0;
+    #endif
     wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
     return;
   }
