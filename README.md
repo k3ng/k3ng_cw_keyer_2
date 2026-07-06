@@ -328,22 +328,22 @@ This tracks the porting of features and options from v1 to v2. Items are listed 
 ### Winkey Emulation
 
 - [x] `FEATURE_WINKEY_EMULATION` — K1EL Winkeyer protocol over serial
-- [ ] `OPTION_PRIMARY_SERIAL_PORT_DEFAULT_WINKEY_EMULATION`
-- [ ] `OPTION_WINKEY_2_SUPPORT`
-- [ ] `OPTION_WINKEY_STRICT_HOST_OPEN`
-- [ ] `OPTION_WINKEY_SEND_BREAKIN_STATUS_BYTE`
-- [ ] `OPTION_WINKEY_INTERRUPTS_MEMORY_REPEAT`
-- [ ] `OPTION_WINKEY_2_HOST_CLOSE_NO_SERIAL_PORT_RESET`
-- [ ] `OPTION_WINKEY_IGNORE_LOWERCASE`
-- [ ] `OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP`
-- [ ] `OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM`
-- [ ] `OPTION_WINKEY_SEND_WORDSPACE_AT_END_OF_BUFFER`
-- [ ] `OPTION_WINKEY_FREQUENT_STATUS_REPORT`
-- [ ] `OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN`
-- [ ] `OPTION_WINKEY_SEND_VERSION_ON_HOST_CLOSE`
-- [ ] `OPTION_WINKEY_PINCONFIG_PTT_CONTROLS_PTT_LINE`
-- [ ] `OPTION_WINKEY_PROSIGN_COMPATIBILITY`
-- [ ] `OPTION_WINKEY_UCXLOG_9600_BAUD`
+- [ ] `OPTION_PRIMARY_SERIAL_PORT_DEFAULT_WINKEY_EMULATION` — not ported (shared CLI/Winkey port boot-mode selection; out of scope)
+- [ ] `OPTION_WINKEY_2_SUPPORT` — not ported; v2 is WK2-only by design (see `550-Feature-Winkey.md`)
+- [x] `OPTION_WINKEY_STRICT_HOST_OPEN` — active by default
+- [x] `OPTION_WINKEY_SEND_BREAKIN_STATUS_BYTE` — active by default
+- [ ] `OPTION_WINKEY_INTERRUPTS_MEMORY_REPEAT` — N/A, no memory-repeat mechanism exists in v2 to interrupt
+- [ ] `OPTION_WINKEY_2_HOST_CLOSE_NO_SERIAL_PORT_RESET` — N/A, only meaningful as a sub-behavior of `OPTION_WINKEY_2_SUPPORT`'s baud-switching, which doesn't exist in v2
+- [x] `OPTION_WINKEY_IGNORE_LOWERCASE` — active by default
+- [x] `OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP` — ported, disabled by default
+- [x] `OPTION_WINKEY_STRICT_EEPROM_WRITES_MAY_WEAR_OUT_EEPROM` — ported, disabled by default
+- [x] `OPTION_WINKEY_SEND_WORDSPACE_AT_END_OF_BUFFER` — ported, disabled by default
+- [x] `OPTION_WINKEY_FREQUENT_STATUS_REPORT` — ported, disabled by default
+- [x] `OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN` — ported, disabled by default
+- [x] `OPTION_WINKEY_SEND_VERSION_ON_HOST_CLOSE` — ported, disabled by default
+- [x] `OPTION_WINKEY_PINCONFIG_PTT_CONTROLS_PTT_LINE` — ported, disabled by default
+- [x] `OPTION_WINKEY_PROSIGN_COMPATIBILITY` — ported, disabled by default
+- [x] `OPTION_WINKEY_UCXLOG_9600_BAUD` — ported, disabled by default
 
 ### Keyboard / Input
 
