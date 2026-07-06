@@ -151,6 +151,14 @@ void winkey_init(WinkeyState* wk, Stream* port) {
 // Call immediately when the paddle fires during automatic (Winkey) sending.
 // Mirrors v1 lines 2793-2797: sends 0xC6 (BREAKIN status) right away and arms
 // the housekeeping path to send 0xC6+0xC0 once PTT drops.
+//
+// v1's OPTION_WINKEY_SEND_BREAKIN_STATUS_BYTE defers the 0xC6 send by one
+// loop() pass via a flag, and needs a separate inhibit flag to suppress it
+// during local Command Mode. v2 doesn't need either: this function is called
+// synchronously at the trigger site (check_paddles()) so there's no deferral,
+// and check_paddles() already returns immediately in Command Mode, so this
+// path can never be reached then. The caller gates this call on
+// OPTION_WINKEY_SEND_BREAKIN_STATUS_BYTE.
 // ---------------------------------------------------------------------------
 void winkey_notify_paddle_interrupt(WinkeyState* wk) {
   if (!wk->host_open || !wk->sending || wk->interrupted) return;
@@ -642,6 +650,9 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
         WK_DBGLN("WK host open");
         break;
       case 0x03:  // HOST CLOSE
+        #ifdef OPTION_WINKEY_SEND_VERSION_ON_HOST_CLOSE
+        wk_write(wk, WINKEY_VERSION);
+        #endif
         wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
         wk->host_open = 0;
         WK_DBGLN("WK host close");

@@ -1459,7 +1459,7 @@ void check_paddles() {
     DEBUG_WINKEY_PORT.println(cw_scheduler.cw_scheduler_state);
     #endif
     clear_buffers_and_stop_sending(&cw_scheduler, &tx_ptt, &configuration);
-    #ifdef FEATURE_WINKEY_EMULATION
+    #if defined(FEATURE_WINKEY_EMULATION) && defined(OPTION_WINKEY_SEND_BREAKIN_STATUS_BYTE)
     winkey_notify_paddle_interrupt(&winkey_state);
     #endif
   }
