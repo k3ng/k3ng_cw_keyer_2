@@ -211,6 +211,36 @@ static void winkey_load_settings_command(WinkeyState* wk,
 }
 
 // ---------------------------------------------------------------------------
+// service_ptt_blink() — OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN
+// Non-blocking replacement for v1's delay()-based blink_ptt_dits_and_dahs():
+// blinks the physical PTT line in Morse shorthand (".." on host open, "--" on
+// host close) instead of an audible beep. Armed by the ADMIN 0x02/0x03
+// handlers below; ticked once per loop() from the top of
+// service_winkey_housekeeping(), before its host_open early-return, since the
+// host-close pattern is armed after host_open is already 0.
+// ---------------------------------------------------------------------------
+static void service_ptt_blink(WinkeyState* wk, tx_ptt_struct* ptt_s) {
+  #ifdef OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN
+  if (!wk->ptt_blink_pattern) return;
+  if (millis() < wk->ptt_blink_next_ms) return;
+
+  char c = wk->ptt_blink_pattern[wk->ptt_blink_index];
+  if (c == '\0') { wk->ptt_blink_pattern = NULL; ptt(ptt_s, 0); return; }
+
+  if (!wk->ptt_blink_key_down) {
+    ptt(ptt_s, 1);
+    wk->ptt_blink_key_down = 1;
+    wk->ptt_blink_next_ms  = millis() + (c == '-' ? 300UL : 100UL);
+  } else {
+    ptt(ptt_s, 0);
+    wk->ptt_blink_key_down = 0;
+    wk->ptt_blink_index++;
+    wk->ptt_blink_next_ms  = millis() + 100UL;  // inter-element gap
+  }
+  #endif
+}
+
+// ---------------------------------------------------------------------------
 // service_winkey_housekeeping()
 // Called every loop().  Mirrors v1's WINKEY_HOUSEKEEPING action.
 // ---------------------------------------------------------------------------
@@ -218,6 +248,7 @@ void service_winkey_housekeeping(WinkeyState* wk,
                                  cw_scheduler_struct* sched,
                                  tx_ptt_struct*        ptt_s,
                                  config_struct*        cfg) {
+  service_ptt_blink(wk, ptt_s);
   if (!wk->host_open) return;
 
   // v1 line 11529: send 0xC0 when:
@@ -711,6 +742,12 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
         wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
         wk->host_open = 1;
         wk->sending   = 0;
+        #ifdef OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN
+        wk->ptt_blink_pattern  = "..";
+        wk->ptt_blink_index    = 0;
+        wk->ptt_blink_key_down = 0;
+        wk->ptt_blink_next_ms  = millis();
+        #endif
         WK_DBGLN("WK host open");
         break;
       case 0x03:  // HOST CLOSE
@@ -719,6 +756,12 @@ void service_winkey_byte(WinkeyState* wk, uint8_t b,
         #endif
         wk->winkey_status = WINKEY_NO_COMMAND_IN_PROGRESS;
         wk->host_open = 0;
+        #ifdef OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN
+        wk->ptt_blink_pattern  = "--";
+        wk->ptt_blink_index    = 0;
+        wk->ptt_blink_key_down = 0;
+        wk->ptt_blink_next_ms  = millis();
+        #endif
         WK_DBGLN("WK host close");
         break;
       case 0x04:

@@ -82,6 +82,12 @@ struct WinkeyState {
 
   uint8_t        trailing_wordspace_queued;  // OPTION_WINKEY_SEND_WORDSPACE_AT_END_OF_BUFFER one-shot latch
   uint8_t        startup_discard_remaining;  // OPTION_WINKEY_DISCARD_BYTES_AT_STARTUP: bytes still to discard
+
+  // OPTION_WINKEY_BLINK_PTT_ON_HOST_OPEN: non-blocking PTT-blink state machine
+  const char*    ptt_blink_pattern;    // NULL = idle; else ".." (host open) or "--" (host close)
+  uint8_t        ptt_blink_index;      // index into ptt_blink_pattern
+  uint8_t        ptt_blink_key_down;   // 1 = currently in the key-down phase of the current element
+  unsigned long  ptt_blink_next_ms;    // millis() deadline for next phase transition
 };
 
 void winkey_init(WinkeyState* wk, Stream* port);
