@@ -200,8 +200,18 @@ void send_cw_char(cw_scheduler_struct *cw_scheduler_ptr, char cw_char, byte omit
     case '(':  send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dahs(cw_scheduler_ptr, 2); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); break;
     case ')':  send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dahs(cw_scheduler_ptr, 2); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); break;
     case '&':  send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dits(cw_scheduler_ptr, 3); break;                              // AS
+    #ifdef OPTION_WINKEY_PROSIGN_COMPATIBILITY
+    // K1EL Winkey prosign convention: remaps these characters as ASCII stand-ins
+    // for common CW prosigns/punctuation instead of their standard Morse forms.
+    case 0x5C: send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dits(cw_scheduler_ptr, 2); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); break;  // "-..-." Backslash
+    case '[':  send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dits(cw_scheduler_ptr, 3); break;                                                 // ".-..."
+    case ':':  send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dahs(cw_scheduler_ptr, 2); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); break;  // "-.--."
+    case ';':  send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); break;  // ".-.-"
+    case ']':  send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dahs(cw_scheduler_ptr, 2); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); break;  // "-.--." (same as ':')
+    #else
     case ':':  send_dahs(cw_scheduler_ptr, 3); send_dits(cw_scheduler_ptr, 3); break;
     case ';':  send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); break;
+    #endif
     case '+':  send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); break;  // AR
     case '-':  send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dits(cw_scheduler_ptr, 4); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); break;
     case '_':  send_dits(cw_scheduler_ptr, 2); send_dahs(cw_scheduler_ptr, 2); send_dit(cw_scheduler_ptr, AUTOMATIC_SENDING); send_dah(cw_scheduler_ptr, AUTOMATIC_SENDING); break;
